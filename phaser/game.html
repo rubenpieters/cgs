@@ -12,84 +12,9 @@
 </head>
 <body>
 
-<script type="text/javascript">
 
-var game = new Phaser.Game(
-	800, 600, Phaser.AUTO, '',
-	{ preload: preload, create: create, update: update }
-);
-
-cardH = 60
-cardW = 60
-
-function preload() {
-  game.load.image('card', 'assets/card.png');
-	game.load.image('menu', 'assets/menu.png');
-	game.load.image('empty', 'assets/empty.png');
-}
-
-function create() {
-  // Menu
-
-  // - bottom
-
-  botMenH = 100;
-	botMenY = game.world.height - botMenH
-  bottomMenu = game.add.sprite(0, botMenY, 'menu');
-	bottomMenu.height = botMenH;
-  bottomMenu.width = game.world.width;
-
-	// - right
-
-  rgtMenH = 200;
-	rgtMenX = game.world.width - rgtMenH
-  bottomMenu = game.add.sprite(rgtMenX, 0, 'menu');
-	bottomMenu.height = game.world.height - botMenH;
-  bottomMenu.width = rgtMenH;
-
-  // - right - card preview
-	prevH = cardH * 2;
-	prevW = cardW * 2;
-	preview = game.add.sprite(rgtMenX + 40, 30, 'empty');
-	preview.height = prevH;
-	preview.width = prevW;
-
-	 // Cards
-  var card = game.add.sprite(60, 60, 'card');
-	card.height = cardH;
-	card.width = cardW;
-
-  card.inputEnabled = true;
-  card.input.enableDrag();
-  card.events.onDragStart.add(onDragStart, this);
-  card.events.onDragStop.add(onDragStop, this);
-	card.events.onInputOver.add(onInputOver, this);
-
-	card.cardInfo = {
-		texture: 'card'
-	}
-}
-
-function update() {
-}
-
-function onInputOver(sprite, pointer) {
-  if ('cardInfo' in sprite) {
-    preview.loadTexture(sprite.cardInfo.texture, 0, false);
-		preview.height = prevH;
-		preview.width = prevW;
-	}
-}
-
-function onDragStart(sprite, pointer) {
-
-}
-
-function onDragStop(sprite, pointer) {
-
-}
-
-</script>
+    <script src="js/purs.js"></script>
+    <script src="js/game.js"></script>
 
 </body>
 </html>
