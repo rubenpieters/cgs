@@ -1,7 +1,15 @@
+var gameH = 600;
+var gameW = 800;
+
 var game = new Phaser.Game(
-	  800, 600, Phaser.AUTO, '',
+	  gameW, gameH, Phaser.AUTO, '',
 	  { preload: preload, create: create, update: update }
 );
+
+var botMenH = 100;
+var rgtMenH = 200;
+var playRegionY = gameH - botMenH;
+var playRegionX = gameW - rgtMenH;
 
 var cardH = 60;
 var cardW = 60;
@@ -21,30 +29,27 @@ function create() {
 
     // - bottom
 
-    var botMenH = 100;
-  	var botMenY = game.world.height - botMenH;
-    var bottomMenu = game.add.sprite(0, botMenY, 'menu');
+    var bottomMenu = game.add.sprite(0, playRegionY, 'menu');
   	bottomMenu.height = botMenH;
-    bottomMenu.width = game.world.width;
+    bottomMenu.width = gameW;
 
 	  // - right
 
-    var rgtMenH = 200;
-	  var rgtMenX = game.world.width - rgtMenH;
-    bottomMenu = game.add.sprite(rgtMenX, 0, 'menu');
-  	bottomMenu.height = game.world.height - botMenH;
+    bottomMenu = game.add.sprite(playRegionX, 0, 'menu');
+  	bottomMenu.height = gameH - botMenH;
     bottomMenu.width = rgtMenH;
 
     // - right - card preview
-  	preview = game.add.sprite(rgtMenX + 40, 30, 'empty');
+  	preview = game.add.sprite(playRegionX + 40, 30, 'empty');
   	preview.height = prevH;
 	  preview.width = prevW;
 
     // Cards
-    var card = game.add.sprite(60, 60, 'card');
+    card = game.add.sprite(60, 60, 'card');
   	card.height = cardH;
   	card.width = cardW;
 
+		card.dragging = false;
     card.inputEnabled = true;
     card.input.enableDrag();
     card.events.onDragStart.add(onDragStart, this);
@@ -57,6 +62,11 @@ function create() {
 }
 
 function update() {
+  if (card != null && card.dragging) {
+    card.x = PS.Main.clamp(card.x)({lBound: 0, uBound: playRegionX - cardW});
+	  card.y = PS.Main.clamp(card.y)({lBound: 0, uBound: playRegionY - cardH});
+	}
+
 }
 
 function onInputOver(sprite, pointer) {
@@ -69,9 +79,11 @@ function onInputOver(sprite, pointer) {
 }
 
 function onDragStart(sprite, pointer) {
+  sprite.dragging = true;
 
 }
 
 function onDragStop(sprite, pointer) {
+  sprite.dragging = false;
 
 }

@@ -188,10 +188,23 @@ var PS = {};
   var Control_Applicative = PS["Control.Applicative"];
   var Control_Monad_Eff = PS["Control.Monad.Eff"];
   var Control_Monad_Eff_Console = PS["Control.Monad.Eff.Console"];
+  var Data_Ord = PS["Data.Ord"];
   var Data_Unit = PS["Data.Unit"];
   var Prelude = PS["Prelude"];        
   var main = Control_Applicative.pure(Control_Monad_Eff.applicativeEff)(Data_Unit.unit);
   var logTest = Control_Monad_Eff_Console.log("Hello sailor!");
+  var clamp = function (x) {
+      return function (v) {
+          if (x > v.uBound) {
+              return v.uBound;
+          };
+          if (x < v.lBound) {
+              return v.lBound;
+          };
+          return x;
+      };
+  };
+  exports["clamp"] = clamp;
   exports["logTest"] = logTest;
   exports["main"] = main;
 })(PS["Main"] = PS["Main"] || {});
