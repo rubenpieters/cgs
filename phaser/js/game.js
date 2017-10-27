@@ -95,9 +95,6 @@ function update() {
 		    card.x = PS.Main.clamp(card.x)({lBound: 0, uBound: playRegionX - cardW});
 			  card.y = PS.Main.clamp(card.y)({lBound: 0, uBound: playRegionY - cardH});
 			}
-			/*if (!card.dragging && !card.selecting) {
-				card.tint = 0xffffff;
-			}*/
 		}
 	});
 }
