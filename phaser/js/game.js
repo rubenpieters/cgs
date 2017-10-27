@@ -11,12 +11,12 @@ var rgtMenH = 200;
 var playRegionY = gameH - botMenH;
 var playRegionX = gameW - rgtMenH;
 
-var cardH = 60;
-var cardW = 60;
+var cardH = 40;
+var cardW = 25;
 
 var preview;
-var prevH = cardH * 2;
-var prevW = cardW * 2;
+var prevH = cardH * 3;
+var prevW = cardW * 3;
 
 var cards = [];
 
@@ -66,8 +66,8 @@ function create() {
 
 function addNewCard() {
 	var newCard = mkCard(newCardMarker.x, newCardMarker.y, 'card');
-	newCardMarker.x += 15;
-	newCardMarker.y += 15;
+	newCardMarker.x += 5;
+	newCardMarker.y += 7;
 	return newCard;
 }
 
@@ -78,10 +78,11 @@ function mkCard(x, y, textureName) {
 
 	card.dragging = false;
 	card.inputEnabled = true;
-	card.input.enableDrag();
+	card.input.enableDrag(false, true);
 	card.events.onDragStart.add(onDragStart, this);
 	card.events.onDragStop.add(onDragStop, this);
 	card.events.onInputOver.add(onInputOver, this);
+	card.events.onInputOut.add(onInputOut, this);
 
 	card.cardInfo = {
 		texture: 'card'
@@ -102,8 +103,12 @@ function onInputOver(sprite, pointer) {
       preview.loadTexture(sprite.cardInfo.texture, 0, false);
 	  	preview.height = prevH;
 		  preview.width = prevW;
-      PS.Main.logTest();
 	}
+	sprite.tint = 0x777777;
+}
+
+function onInputOut(sprite, pointer) {
+	sprite.tint = 0xffffff;
 }
 
 function onDragStart(sprite, pointer) {
