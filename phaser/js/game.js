@@ -12,7 +12,7 @@ var playRegionY = gameH - botMenH;
 var playRegionX = gameW - rgtMenH;
 
 var cardH = 40;
-var cardW = 25;
+var cardW = 24;
 
 var preview;
 var prevH = cardH * 3;
@@ -35,13 +35,11 @@ function create() {
     // Menu
 
     // - bottom
-
     var bottomMenu = game.add.sprite(0, playRegionY, 'menu');
   	bottomMenu.height = botMenH;
     bottomMenu.width = gameW;
 
 		// - bottom - create card button
-
 		var button = game.add.button(10, playRegionY + 10, 'empty', createCardClick, this, 2, 1, 0);
 		button.height = 20;
 		button.width = 50;
@@ -49,7 +47,6 @@ function create() {
 		game.add.text(12, playRegionY + 15, "Add Card", style);
 
 	  // - right
-
     bottomMenu = game.add.sprite(playRegionX, 0, 'menu');
   	bottomMenu.height = gameH - botMenH;
     bottomMenu.width = rgtMenH;
@@ -60,23 +57,24 @@ function create() {
 	  preview.width = prevW;
 
     // Cards
-
-		cards.push(addNewCard());
+		addNewCard();
 }
 
 function addNewCard() {
 	var newCard = mkCard(newCardMarker.x, newCardMarker.y, 'card');
 	newCardMarker.x += 5;
 	newCardMarker.y += 7;
+	cards.push(newCard);
 	return newCard;
 }
 
 function mkCard(x, y, textureName) {
-	card = game.add.sprite(x, y, textureName);
+	var card = game.add.sprite(x, y, textureName);
 	card.height = cardH;
 	card.width = cardW;
 
 	card.dragging = false;
+	card.selecting = false;
 	card.inputEnabled = true;
 	card.input.enableDrag(false, true);
 	card.events.onDragStart.add(onDragStart, this);
@@ -91,11 +89,17 @@ function mkCard(x, y, textureName) {
 }
 
 function update() {
-  if (card != null && card.dragging) {
-    card.x = PS.Main.clamp(card.x)({lBound: 0, uBound: playRegionX - cardW});
-	  card.y = PS.Main.clamp(card.y)({lBound: 0, uBound: playRegionY - cardH});
-	}
-
+	cards.forEach(function(card) {
+	  if (card != null) {
+			if (card.dragging) {
+		    card.x = PS.Main.clamp(card.x)({lBound: 0, uBound: playRegionX - cardW});
+			  card.y = PS.Main.clamp(card.y)({lBound: 0, uBound: playRegionY - cardH});
+			}
+			/*if (!card.dragging && !card.selecting) {
+				card.tint = 0xffffff;
+			}*/
+		}
+	});
 }
 
 function onInputOver(sprite, pointer) {
@@ -104,19 +108,33 @@ function onInputOver(sprite, pointer) {
 	  	preview.height = prevH;
 		  preview.width = prevW;
 	}
-	sprite.tint = 0x777777;
+	selectCard(sprite);
 }
 
 function onInputOut(sprite, pointer) {
-	sprite.tint = 0xffffff;
+  unselectCard(sprite);
 }
 
 function onDragStart(sprite, pointer) {
+  unselectCard(sprite);
+	sprite.height /= 2;
+	sprite.width /= 2;
   sprite.dragging = true;
+}
 
+function selectCard(card) {
+	card.selecting = true;
+	card.tint = 0x777777;
+}
+
+function unselectCard(card) {
+	card.selecting = false;
+	card.tint = 0xffffff;
 }
 
 function onDragStop(sprite, pointer) {
+	sprite.height *= 2;
+	sprite.width *= 2;
   sprite.dragging = false;
 
 }
