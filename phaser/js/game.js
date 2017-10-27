@@ -18,6 +18,13 @@ var preview;
 var prevH = cardH * 2;
 var prevW = cardW * 2;
 
+var cards = [];
+
+var newCardMarker = {
+	x: 60,
+	y: 60,
+}
+
 function preload() {
     game.load.image('card', 'assets/card.png');
   	game.load.image('menu', 'assets/menu.png');
@@ -33,6 +40,14 @@ function create() {
   	bottomMenu.height = botMenH;
     bottomMenu.width = gameW;
 
+		// - bottom - create card button
+
+		var button = game.add.button(10, playRegionY + 10, 'empty', createCardClick, this, 2, 1, 0);
+		button.height = 20;
+		button.width = 50;
+    var style = { font: "10px Arial", fill: "#000000", align: "center" };
+		game.add.text(12, playRegionY + 15, "Add Card", style);
+
 	  // - right
 
     bottomMenu = game.add.sprite(playRegionX, 0, 'menu');
@@ -45,20 +60,33 @@ function create() {
 	  preview.width = prevW;
 
     // Cards
-    card = game.add.sprite(60, 60, 'card');
-  	card.height = cardH;
-  	card.width = cardW;
 
-		card.dragging = false;
-    card.inputEnabled = true;
-    card.input.enableDrag();
-    card.events.onDragStart.add(onDragStart, this);
-    card.events.onDragStop.add(onDragStop, this);
-  	card.events.onInputOver.add(onInputOver, this);
+		cards.push(addNewCard());
+}
 
-  	card.cardInfo = {
-	  	texture: 'card'
-  	};
+function addNewCard() {
+	var newCard = mkCard(newCardMarker.x, newCardMarker.y, 'card');
+	newCardMarker.x += 15;
+	newCardMarker.y += 15;
+	return newCard;
+}
+
+function mkCard(x, y, textureName) {
+	card = game.add.sprite(x, y, textureName);
+	card.height = cardH;
+	card.width = cardW;
+
+	card.dragging = false;
+	card.inputEnabled = true;
+	card.input.enableDrag();
+	card.events.onDragStart.add(onDragStart, this);
+	card.events.onDragStop.add(onDragStop, this);
+	card.events.onInputOver.add(onInputOver, this);
+
+	card.cardInfo = {
+		texture: 'card'
+	};
+	return card;
 }
 
 function update() {
@@ -86,4 +114,8 @@ function onDragStart(sprite, pointer) {
 function onDragStop(sprite, pointer) {
   sprite.dragging = false;
 
+}
+
+function createCardClick(sprite, pointer) {
+	addNewCard();
 }
