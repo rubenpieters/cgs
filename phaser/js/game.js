@@ -74,7 +74,8 @@ function mkCard(x, y, textureName) {
 	card.width = cardW;
 
 	card.dragging = false;
-	card.selecting = false;
+  card.selecting = false;
+  card.overlapping = false;
 	card.inputEnabled = true;
 	card.input.enableDrag(false, true);
 	card.events.onDragStart.add(onDragStart, this);
@@ -89,14 +90,46 @@ function mkCard(x, y, textureName) {
 }
 
 function update() {
+  cards.forEach(function(card) {
+      if (card != null) {
+          card.overlapping = false;
+      }
+  });
 	cards.forEach(function(card) {
 	  if (card != null) {
-			if (card.dragging) {
-		    card.x = PS.Main.clamp(card.x)({lBound: 0, uBound: playRegionX - cardW});
-			  card.y = PS.Main.clamp(card.y)({lBound: 0, uBound: playRegionY - cardH});
-			}
+			  if (card.dragging) {
+            // clamp x/y position
+		        card.x = PS.Main.clamp(card.x)({lBound: 0, uBound: playRegionX - cardW});
+			      card.y = PS.Main.clamp(card.y)({lBound: 0, uBound: playRegionY - cardH});
+
+            // highlight card overlap
+            var overlap = firstOverlappingCard(card);
+            if (overlap != null) {
+                overlap.overlapping = true;
+            }
+			  }
 		}
 	});
+  cards.forEach(function(card) {
+      if (card.overlapping) {
+          card.tint = 0x885555;
+      } else if (!card.selecting) {
+          card.tint = 0xffffff;
+      }
+  });
+
+}
+
+function firstOverlappingCard(card) {
+    return cards.find(function(c) {
+        return (!(card.x === c.x && card.y === c.y)) && checkOverlap(card, c);
+    });
+}
+
+function checkOverlap(spriteA, spriteB) {
+    var boundsA = spriteA.getBounds();
+    var boundsB = spriteB.getBounds();
+    return Phaser.Rectangle.intersects(boundsA, boundsB);
 }
 
 function onInputOver(sprite, pointer) {
