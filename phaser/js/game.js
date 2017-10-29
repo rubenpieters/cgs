@@ -3,7 +3,7 @@ var gameW = 800;
 
 var game = new Phaser.Game(
   gameW, gameH, Phaser.AUTO, '',
-  { preload: preload, create: create, update: update }
+  { preload: preload, create: create, update: update, render: render }
 );
 
 var botMenH = 100;
@@ -23,7 +23,7 @@ var cards = [];
 var newCardMarker = {
   x: 60,
   y: 60,
-}
+};
 
 var popupGroup;
 var cardGroup;
@@ -104,10 +104,22 @@ function mkCard(x, y, textureName) {
   card.events.onInputOver.add(onInputOver, this);
   card.events.onInputOut.add(onInputOut, this);
 
+  var style = { font: "10px Arial", fill: "#ffffff", align: "center", stroke: "black", strokeThickness: 1};
+  var packText = game.add.text(card.x + 6, card.y + 6, 1, style);
+//  packText.visible = false;
+
   card.cardInfo = {
-    texture: 'card'
+    texture: 'card',
+    pack: [],
+    packText: packText,
   };
   return card;
+}
+
+function render() {
+  cards.forEach(function(card) {
+    game.debug.spriteBounds(card);
+  });
 }
 
 function update() {
@@ -122,6 +134,12 @@ function update() {
   //
   cards.forEach(function(card) {
     if (card != null) {
+      // update card text
+      card.cardInfo.packText.x = card.x + 3;
+      card.cardInfo.packText.y = card.y + 3;
+      card.cardInfo.packText.setText(card.cardInfo.pack.length + 1);
+      card.cardInfo.packText.visible = card.visible;
+
       if (card.dragging) {
         // clamp x/y position
         card.x = PS.Main.clamp(card.x)({lBound: 0, uBound: playRegionX - cardW});
@@ -196,7 +214,7 @@ function onDragStop(sprite, pointer) {
     overlapDropMenu.x = sprite.x;
     overlapDropMenu.y = sprite.y;
     sprite.visible = false;
-    overlapDropMenu.events.onInputDown.add(overlapDropClick(sprite));
+    overlapDropMenu.events.onInputDown.add(overlapDropClick(sprite, overlapCard));
     overlapDropMenu.visible = true;
   }
 }
@@ -205,9 +223,12 @@ function createCardClick(sprite, pointer) {
   addNewCard();
 }
 
-function overlapDropClick(draggedCard) {
-  return function (sprite, pointer) {
-    draggedCard.visible = true;
+function overlapDropClick(draggedCard, overlapCard) {
+  return function () {
+    overlapCard.cardInfo.pack.push(draggedCard);
+    overlapCard.cardInfo.pack = overlapCard.cardInfo.pack.concat(draggedCard.cardInfo.pack);
+    draggedCard.cardInfo.pack = [];
+    draggedCard.kill();
     overlapDropMenu.visible = false;
     overlapDropMenu.events.onInputDown.removeAll();
   };
