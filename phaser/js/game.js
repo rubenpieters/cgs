@@ -2,8 +2,8 @@ var gameH = 600;
 var gameW = 800;
 
 var game = new Phaser.Game(
-	  gameW, gameH, Phaser.AUTO, '',
-	  { preload: preload, create: create, update: update }
+  gameW, gameH, Phaser.AUTO, '',
+  { preload: preload, create: create, update: update }
 );
 
 var botMenH = 100;
@@ -21,124 +21,150 @@ var prevW = cardW * 3;
 var cards = [];
 
 var newCardMarker = {
-	x: 60,
-	y: 60,
+  x: 60,
+  y: 60,
 }
 
+var popupGroup;
+var cardGroup;
+
+var overlapCard;
+var overlapDropMenu;
+
 function preload() {
-    game.load.image('card', 'assets/card.png');
-  	game.load.image('menu', 'assets/menu.png');
-  	game.load.image('empty', 'assets/empty.png');
+  game.load.image('card', 'assets/card.png');
+  game.load.image('menu', 'assets/menu.png');
+  game.load.image('empty', 'assets/empty.png');
 }
 
 function create() {
-    // Menu
+  // Menu
 
-    // - bottom
-    var bottomMenu = game.add.sprite(0, playRegionY, 'menu');
-  	bottomMenu.height = botMenH;
-    bottomMenu.width = gameW;
+  // - bottom
+  var bottomMenu = game.add.sprite(0, playRegionY, 'menu');
+  bottomMenu.height = botMenH;
+  bottomMenu.width = gameW;
 
-		// - bottom - create card button
-		var button = game.add.button(10, playRegionY + 10, 'empty', createCardClick, this, 2, 1, 0);
-		button.height = 20;
-		button.width = 50;
-    var style = { font: "10px Arial", fill: "#000000", align: "center" };
-		game.add.text(12, playRegionY + 15, "Add Card", style);
+  // - bottom - create card button
+  var button = game.add.button(10, playRegionY + 10, 'empty', createCardClick, this, 2, 1, 0);
+  button.height = 20;
+  button.width = 50;
+  var style = { font: "10px Arial", fill: "#000000", align: "center" };
+  game.add.text(12, playRegionY + 15, "Add Card", style);
 
-	  // - right
-    bottomMenu = game.add.sprite(playRegionX, 0, 'menu');
-  	bottomMenu.height = gameH - botMenH;
-    bottomMenu.width = rgtMenH;
+  // - right
+  bottomMenu = game.add.sprite(playRegionX, 0, 'menu');
+  bottomMenu.height = gameH - botMenH;
+  bottomMenu.width = rgtMenH;
 
-    // - right - card preview
-  	preview = game.add.sprite(playRegionX + 40, 30, 'empty');
-  	preview.height = prevH;
-	  preview.width = prevW;
+  // - right - card preview
+  preview = game.add.sprite(playRegionX + 40, 30, 'empty');
+  preview.height = prevH;
+  preview.width = prevW;
 
-    // Cards
-		addNewCard();
+  // Cards
+  cardGroup = game.add.group();
+  addNewCard();
+
+  // Popup Menu
+  popupGroup = game.add.group();
+  game.world.bringToTop(popupGroup);
+
+  // - on overlap drop
+  ///overlapDropMenu = game.add.button(-1000, -1000, 'empty', overlapDropClick, this, 2, 1, 0);
+  overlapDropMenu = game.add.sprite(-1000, -1000, 'empty');
+  overlapDropMenu.inputEnabled = true;
+  overlapDropMenu.height = 20;
+  overlapDropMenu.width = 50;
+  overlapDropMenu.visible = false;
+  popupGroup.add(overlapDropMenu);
 }
 
 function addNewCard() {
-	var newCard = mkCard(newCardMarker.x, newCardMarker.y, 'card');
-	newCardMarker.x += 5;
-	newCardMarker.y += 7;
-	cards.push(newCard);
-	return newCard;
+  var newCard = mkCard(newCardMarker.x, newCardMarker.y, 'card');
+  newCardMarker.x += 5;
+  newCardMarker.y += 7;
+  cards.push(newCard);
+  cardGroup.add(newCard);
+  return newCard;
 }
 
 function mkCard(x, y, textureName) {
-	var card = game.add.sprite(x, y, textureName);
-	card.height = cardH;
-	card.width = cardW;
+  var card = game.add.sprite(x, y, textureName);
+  card.height = cardH;
+  card.width = cardW;
 
-	card.dragging = false;
+  card.dragging = false;
   card.selecting = false;
   card.overlapping = false;
-	card.inputEnabled = true;
-	card.input.enableDrag(false, true);
-	card.events.onDragStart.add(onDragStart, this);
-	card.events.onDragStop.add(onDragStop, this);
-	card.events.onInputOver.add(onInputOver, this);
-	card.events.onInputOut.add(onInputOut, this);
+  card.inputEnabled = true;
+  card.input.enableDrag(false, true);
+  card.events.onDragStart.add(onDragStart, this);
+  card.events.onDragStop.add(onDragStop, this);
+  card.events.onInputOver.add(onInputOver, this);
+  card.events.onInputOut.add(onInputOut, this);
 
-	card.cardInfo = {
-		texture: 'card'
-	};
-	return card;
+  card.cardInfo = {
+    texture: 'card'
+  };
+  return card;
 }
 
 function update() {
+  // clear info overlapping card
   cards.forEach(function(card) {
-      if (card != null) {
-          card.overlapping = false;
-      }
+    if (card != null) {
+      card.overlapping = false;
+    }
   });
-	cards.forEach(function(card) {
-	  if (card != null) {
-			  if (card.dragging) {
-            // clamp x/y position
-		        card.x = PS.Main.clamp(card.x)({lBound: 0, uBound: playRegionX - cardW});
-			      card.y = PS.Main.clamp(card.y)({lBound: 0, uBound: playRegionY - cardH});
+  overlapCard = null;
 
-            // highlight card overlap
-            var overlap = firstOverlappingCard(card);
-            if (overlap != null) {
-                overlap.overlapping = true;
-            }
-			  }
-		}
-	});
+  //
   cards.forEach(function(card) {
-      if (card.overlapping) {
-          card.tint = 0x885555;
-      } else if (!card.selecting) {
-          card.tint = 0xffffff;
+    if (card != null) {
+      if (card.dragging) {
+        // clamp x/y position
+        card.x = PS.Main.clamp(card.x)({lBound: 0, uBound: playRegionX - cardW});
+        card.y = PS.Main.clamp(card.y)({lBound: 0, uBound: playRegionY - cardH});
+
+        // highlight card overlap
+        var overlap = firstOverlappingCard(card);
+        if (overlap != null) {
+          overlap.overlapping = true;
+          overlapCard = overlap;
+        }
       }
+    }
+  });
+  cards.forEach(function(card) {
+    if (card.overlapping) {
+      card.tint = 0x885555;
+    } else if (!card.selecting) {
+      card.tint = 0xffffff;
+    }
   });
 
 }
 
 function firstOverlappingCard(card) {
-    return cards.find(function(c) {
-        return (!(card.x === c.x && card.y === c.y)) && checkOverlap(card, c);
-    });
+  return cards.find(function(c) {
+    return (!(card.x === c.x && card.y === c.y)) && checkOverlap(card, c);
+  });
 }
 
 function checkOverlap(spriteA, spriteB) {
-    var boundsA = spriteA.getBounds();
-    var boundsB = spriteB.getBounds();
-    return Phaser.Rectangle.intersects(boundsA, boundsB);
+  var boundsA = spriteA.getBounds();
+  var boundsB = spriteB.getBounds();
+  return Phaser.Rectangle.intersects(boundsA, boundsB);
 }
 
 function onInputOver(sprite, pointer) {
   if ('cardInfo' in sprite) {
-      preview.loadTexture(sprite.cardInfo.texture, 0, false);
-	  	preview.height = prevH;
-		  preview.width = prevW;
-	}
-	selectCard(sprite);
+    preview.loadTexture(sprite.cardInfo.texture, 0, false);
+    preview.height = prevH;
+    preview.width = prevW;
+  }
+  selectCard(sprite);
 }
 
 function onInputOut(sprite, pointer) {
@@ -147,28 +173,42 @@ function onInputOut(sprite, pointer) {
 
 function onDragStart(sprite, pointer) {
   unselectCard(sprite);
-	sprite.height /= 2;
-	sprite.width /= 2;
+  sprite.height /= 2;
+  sprite.width /= 2;
   sprite.dragging = true;
 }
 
 function selectCard(card) {
-	card.selecting = true;
-	card.tint = 0x777777;
+  card.selecting = true;
+  card.tint = 0x777777;
 }
 
 function unselectCard(card) {
-	card.selecting = false;
-	card.tint = 0xffffff;
+  card.selecting = false;
+  card.tint = 0xffffff;
 }
 
 function onDragStop(sprite, pointer) {
-	sprite.height *= 2;
-	sprite.width *= 2;
+  sprite.height *= 2;
+  sprite.width *= 2;
   sprite.dragging = false;
-
+  if (overlapCard != null) {
+    overlapDropMenu.x = sprite.x;
+    overlapDropMenu.y = sprite.y;
+    sprite.visible = false;
+    overlapDropMenu.events.onInputDown.add(overlapDropClick(sprite));
+    overlapDropMenu.visible = true;
+  }
 }
 
 function createCardClick(sprite, pointer) {
-	addNewCard();
+  addNewCard();
+}
+
+function overlapDropClick(draggedCard) {
+  return function (sprite, pointer) {
+    draggedCard.visible = true;
+    overlapDropMenu.visible = false;
+    overlapDropMenu.events.onInputDown.removeAll();
+  };
 }
