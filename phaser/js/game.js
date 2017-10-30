@@ -18,6 +18,8 @@ var preview;
 var prevH = cardH * 3;
 var prevW = cardW * 3;
 
+var infoText;
+
 var cards = [];
 
 var newCardMarker = {
@@ -31,6 +33,8 @@ var cardGroup;
 var overlapCard;
 var overlapDropMenu;
 
+var globalId = 0;
+
 function preload() {
   game.load.image('card', 'assets/card.png');
   game.load.image('menu', 'assets/menu.png');
@@ -38,6 +42,8 @@ function preload() {
 }
 
 function create() {
+  game.canvas.oncontextmenu = function (e) { e.preventDefault(); };
+
   // Menu
 
   // - bottom
@@ -61,6 +67,9 @@ function create() {
   preview = game.add.sprite(playRegionX + 40, 30, 'empty');
   preview.height = prevH;
   preview.width = prevW;
+
+  // - right - info text
+  infoText = game.add.text(playRegionX + 40, 50 + prevH, "", style);
 
   // Cards
   cardGroup = game.add.group();
@@ -97,12 +106,14 @@ function mkCard(x, y, textureName) {
   card.dragging = false;
   card.selecting = false;
   card.overlapping = false;
+  card.selected = false;
   card.inputEnabled = true;
   card.input.enableDrag(false, true);
   card.events.onDragStart.add(onDragStart, this);
   card.events.onDragStop.add(onDragStop, this);
   card.events.onInputOver.add(onInputOver, this);
   card.events.onInputOut.add(onInputOut, this);
+  card.events.onInputDown.add(onInputDown, this);
 
   var style = { font: "10px Arial", fill: "#ffffff", align: "center", stroke: "black", strokeThickness: 1};
   var packText = game.add.text(card.x + 6, card.y + 6, 1, style);
@@ -112,14 +123,16 @@ function mkCard(x, y, textureName) {
     texture: 'card',
     pack: [],
     packText: packText,
+    gid: globalId,
   };
+  globalId++;
   return card;
 }
 
 function render() {
-  cards.forEach(function(card) {
-    game.debug.spriteBounds(card);
-  });
+  //cards.forEach(function(card) {
+  //  game.debug.spriteBounds(card);
+  //});
 }
 
 function update() {
@@ -130,6 +143,7 @@ function update() {
     }
   });
   overlapCard = null;
+  infoText.setText("");
 
   //
   cards.forEach(function(card) {
@@ -152,11 +166,17 @@ function update() {
           overlapCard = overlap;
         }
       }
+
+      if (card.selected) {
+        infoText.setText("gid: " + card.cardInfo.gid);
+      }
     }
   });
   cards.forEach(function(card) {
     if (card.overlapping) {
       card.tint = 0x885555;
+    } else if (!card.selecting && card.selected) {
+      card.tint = 0x558855;
     } else if (!card.selecting) {
       card.tint = 0xffffff;
     }
@@ -217,6 +237,10 @@ function onDragStop(sprite, pointer) {
     overlapDropMenu.events.onInputDown.add(overlapDropClick(sprite, overlapCard));
     overlapDropMenu.visible = true;
   }
+}
+
+function onInputDown(sprite, pointer) {
+  sprite.selected = !sprite.selected;
 }
 
 function createCardClick(sprite, pointer) {
