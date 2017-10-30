@@ -20,8 +20,6 @@ var prevW = cardW * 3;
 
 var infoText;
 
-var cards = [];
-
 var newCardMarker = {
   x: 60,
   y: 60,
@@ -34,6 +32,10 @@ var overlapCard;
 var overlapDropMenu;
 
 var globalId = 0;
+
+var allCards = [];
+var draggedCards = [];
+var selectedCards = [];
 
 function preload() {
   game.load.image('card', 'assets/card.png');
@@ -93,7 +95,7 @@ function addNewCard() {
   var newCard = mkCard(newCardMarker.x, newCardMarker.y, 'card');
   newCardMarker.x += 5;
   newCardMarker.y += 7;
-  cards.push(newCard);
+  allCards[newCard.cardInfo.gid] = newCard;
   cardGroup.add(newCard);
   return newCard;
 }
@@ -113,10 +115,9 @@ function mkCard(x, y, textureName) {
   card.events.onDragStop.add(onDragStop, this);
   card.events.onInputOver.add(onInputOver, this);
   card.events.onInputOut.add(onInputOut, this);
-  card.events.onInputDown.add(onInputDown, this);
 
   var style = { font: "10px Arial", fill: "#ffffff", align: "center", stroke: "black", strokeThickness: 1};
-  var packText = game.add.text(card.x + 6, card.y + 6, 1, style);
+  var packText = game.add.text(card.x + 3, card.y + 3, 1, style);
 //  packText.visible = false;
 
   card.cardInfo = {
@@ -137,16 +138,12 @@ function render() {
 
 function update() {
   // clear info overlapping card
-  cards.forEach(function(card) {
-    if (card != null) {
-      card.overlapping = false;
-    }
-  });
-  overlapCard = null;
+  if (overlapCard != null) {
+    overlapCard = null;
+  }
   infoText.setText("");
 
-  //
-  cards.forEach(function(card) {
+  draggedCards.forEach(function(card) {
     if (card != null) {
       // update card text
       card.cardInfo.packText.x = card.x + 3;
@@ -154,39 +151,57 @@ function update() {
       card.cardInfo.packText.setText(card.cardInfo.pack.length + 1);
       card.cardInfo.packText.visible = card.visible;
 
-      if (card.dragging) {
-        // clamp x/y position
-        card.x = PS.Main.clamp(card.x)({lBound: 0, uBound: playRegionX - cardW});
-        card.y = PS.Main.clamp(card.y)({lBound: 0, uBound: playRegionY - cardH});
+      // clamp x/y position
+      card.x = PS.Main.clamp(card.x)({lBound: 0, uBound: playRegionX - cardW});
+      card.y = PS.Main.clamp(card.y)({lBound: 0, uBound: playRegionY - cardH});
 
-        // highlight card overlap
-        var overlap = firstOverlappingCard(card);
-        if (overlap != null) {
-          overlap.overlapping = true;
-          overlapCard = overlap;
-        }
+      // highlight card overlap
+      var overlap = firstOverlappingCard(card);
+      if (overlap != null) {
+        overlapCard = overlap;
       }
 
-      if (card.selected) {
-        infoText.setText("gid: " + card.cardInfo.gid);
-      }
-    }
-  });
-  cards.forEach(function(card) {
-    if (card.overlapping) {
-      card.tint = 0x885555;
-    } else if (!card.selecting && card.selected) {
-      card.tint = 0x558855;
-    } else if (!card.selecting) {
       card.tint = 0xffffff;
     }
   });
 
+  selectedCards.forEach(function(card) {
+    if (card != null) {
+      // update card text
+      card.cardInfo.packText.setText(card.cardInfo.pack.length + 1);
+      card.cardInfo.packText.visible = card.visible;
+
+      card.tint = 0x558855;
+    }
+  });
+
+  allCards.forEach(function(card) {
+    if (card != null) {
+      // update card text
+      card.cardInfo.packText.setText(card.cardInfo.pack.length + 1);
+      card.cardInfo.packText.visible = card.visible;
+
+      card.tint = 0xffffff;
+    }
+  });
+
+  if (overlapCard != null) {
+    overlapCard.tint = 0x885555;
+  }
 }
 
 function firstOverlappingCard(card) {
-  return cards.find(function(c) {
-    return (!(card.x === c.x && card.y === c.y)) && checkOverlap(card, c);
+  var result = allCards.find(function(c) {
+    if (c != null) {
+      return (!(card.x === c.x && card.y === c.y)) && checkOverlap(card, c);
+    }
+  });
+  if (result != null)
+    return result;
+  return selectedCards.find(function(c) {
+    if (c != null) {
+      return (!(card.x === c.x && card.y === c.y)) && checkOverlap(card, c);
+    }
   });
 }
 
@@ -202,45 +217,75 @@ function onInputOver(sprite, pointer) {
     preview.height = prevH;
     preview.width = prevW;
   }
-  selectCard(sprite);
 }
 
 function onInputOut(sprite, pointer) {
-  unselectCard(sprite);
-}
-
-function onDragStart(sprite, pointer) {
-  unselectCard(sprite);
-  sprite.height /= 2;
-  sprite.width /= 2;
-  sprite.dragging = true;
-}
-
-function selectCard(card) {
-  card.selecting = true;
-  card.tint = 0x777777;
-}
-
-function unselectCard(card) {
-  card.selecting = false;
-  card.tint = 0xffffff;
-}
-
-function onDragStop(sprite, pointer) {
-  sprite.height *= 2;
-  sprite.width *= 2;
-  sprite.dragging = false;
-  if (overlapCard != null) {
-    overlapDropMenu.x = sprite.x;
-    overlapDropMenu.y = sprite.y;
-    sprite.visible = false;
-    overlapDropMenu.events.onInputDown.add(overlapDropClick(sprite, overlapCard));
-    overlapDropMenu.visible = true;
+  console.log("onInputOut");
+  if (typeof selectedCards[sprite.cardInfo.gid] == 'undefined') {
+    delete draggedCards[sprite.cardInfo.gid];
+    delete selectedCards[sprite.cardInfo.gid];
+    allCards[sprite.cardInfo.gid] = sprite;
   }
 }
 
-function onInputDown(sprite, pointer) {
-  sprite.selected = !sprite.selected;
+function onDragStart(sprite, pointer) {
+  console.log("onDragStart");
+  var origLoc;
+  if (typeof allCards[sprite.cardInfo.gid] != 'undefined') {
+    origLoc = "all";
+  } else if (typeof selectedCards[sprite.cardInfo.gid] != 'undefined') {
+    origLoc = "selected";
+  } else {
+    throw "no original location";
+  }
+  delete allCards[sprite.cardInfo.gid];
+  delete selectedCards[sprite.cardInfo.gid];
+  draggedCards[sprite.cardInfo.gid] = sprite;
+  sprite.events.onDragStop.removeAll();
+  sprite.events.onDragStop.add(onDragStop(sprite.x, sprite.y, origLoc));
+}
+
+function onDragStop(origX, origY, origLoc) {
+    return function(sprite, pointer) {
+    console.log("onDragStop");
+    // clamp x/y position
+    sprite.x = PS.Main.clamp(sprite.x)({lBound: 0, uBound: playRegionX - cardW});
+    sprite.y = PS.Main.clamp(sprite.y)({lBound: 0, uBound: playRegionY - cardH});
+
+    // update card text
+    sprite.cardInfo.packText.x = sprite.x + 3;
+    sprite.cardInfo.packText.y = sprite.y + 3;
+    sprite.cardInfo.packText.setText(sprite.cardInfo.pack.length + 1);
+    sprite.cardInfo.packText.visible = sprite.visible;
+
+    delete draggedCards[sprite.cardInfo.gid];
+
+    if (Math.abs(origX - sprite.x) > 3 && Math.abs(origY - sprite.y) > 3) {
+      if (origLoc === "selected") {
+        selectedCards[sprite.cardInfo.gid] = sprite;
+      } else if (origLoc === "all") {
+        allCards[sprite.cardInfo.gid] = sprite;
+      } else {
+        throw "unexpected origLoc";
+      }
+
+      if (overlapCard != null) {
+        overlapDropMenu.x = sprite.x;
+        overlapDropMenu.y = sprite.y;
+        sprite.visible = false;
+        overlapDropMenu.events.onInputDown.add(overlapDropClick(sprite, overlapCard));
+        overlapDropMenu.visible = true;
+      }
+    } else {
+      if (origLoc === "selected") {
+        allCards[sprite.cardInfo.gid] = sprite;
+      } else if (origLoc === "all") {
+        selectedCards[sprite.cardInfo.gid] = sprite;
+      } else {
+        throw "unexpected origLoc";
+      }
+    }
+  }
 }
 
 function createCardClick(sprite, pointer) {
@@ -252,6 +297,7 @@ function overlapDropClick(draggedCard, overlapCard) {
     overlapCard.cardInfo.pack.push(draggedCard);
     overlapCard.cardInfo.pack = overlapCard.cardInfo.pack.concat(draggedCard.cardInfo.pack);
     draggedCard.cardInfo.pack = [];
+    delete draggedCards[draggedCard.cardInfo.gid];
     draggedCard.kill();
     overlapDropMenu.visible = false;
     overlapDropMenu.events.onInputDown.removeAll();
