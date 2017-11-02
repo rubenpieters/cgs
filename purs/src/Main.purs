@@ -1,6 +1,9 @@
 module Main where
 
 import Prelude
+
+import Data.Map as M
+
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
 
@@ -16,3 +19,12 @@ clamp :: Int -> {lBound :: Int, uBound :: Int} -> Int
 clamp x b | x > b.uBound = b.uBound
 clamp x b | x < b.lBound = b.lBound
 clamp x _ = x
+
+data DragMode = Drag | Draw
+
+derive instance eqDragMode :: Eq DragMode
+derive instance ordDragMode :: Ord DragMode
+
+nextDragMode :: DragMode -> DragMode
+nextDragMode Drag = Draw
+nextDragMode Draw = Drag
