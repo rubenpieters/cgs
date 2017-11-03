@@ -2,7 +2,9 @@ module Main where
 
 import Prelude
 
-import Data.Map as M
+import Data.Maybe
+import Data.List
+import Data.Map
 
 import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
@@ -29,7 +31,29 @@ nextDragMode :: DragMode -> DragMode
 nextDragMode Drag = Draw
 nextDragMode Draw = Drag
 
-foreign import data Phaser :: Effect
+foreign import data PHASER :: Effect
 foreign import data PhCard :: Type
 
-foreign import phMkCard :: ∀ e. Int -> Int -> String -> Eff (ph :: Phaser | e) PhCard
+foreign import phMkCard :: {x :: Int, y :: Int, textureName :: String}
+                        -> Eff (ph :: PHASER) PhCard
+foreign import cardInfo :: PhCard -> CardInfo
+
+type CardInfo =
+  { texture :: String
+  , pack :: List PhCard
+  , packText :: String
+  , gid :: Int
+  }
+
+type Cid = Int
+
+data UiTrigger = Click Cid
+
+type GameState =
+  { cards :: Map Cid PhCard
+  }
+
+updateGameState :: UiTrigger -> GameState -> GameState
+updateGameState (Click cid) gs = gs { cards = updated }
+  where
+    updated = update (Just) cid gs.cards

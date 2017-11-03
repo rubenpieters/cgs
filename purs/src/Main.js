@@ -1,7 +1,8 @@
 "use strict";
 
-exports.phMkCard=function(x, y, textureName) {
-  var card = game.add.sprite(x, y, textureName);
+// {x :: Int, y :: Int, textureName :: String}
+exports.phMkCard=function(o) {
+  var card = game.add.sprite(o.x, o.y, o.textureName);
   card.height = cardH;
   card.width = cardW;
 
@@ -28,4 +29,8 @@ exports.phMkCard=function(x, y, textureName) {
   };
   globalId++;
   return card;
+}
+
+exports.cardInfo=function(card) {
+  return card.cardInfo;
 }
