@@ -1,7 +1,7 @@
 module Main where
 
 import Prelude
-import Control.Monad.Eff (Eff)
+import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
 
 main :: forall e. Eff e Unit
@@ -16,3 +16,8 @@ clamp :: Int -> {lBound :: Int, uBound :: Int} -> Int
 clamp x b | x > b.uBound = b.uBound
 clamp x b | x < b.lBound = b.lBound
 clamp x _ = x
+
+foreign import data Phaser :: Effect
+foreign import data PhCard :: Type
+
+foreign import phMkCard :: ∀ e. Int -> Int -> String -> Eff (ph :: Phaser | e) PhCard
