@@ -86,7 +86,7 @@ type CardInfo =
 
 type Cid = Int
 
-data UiEvent = Select Cid
+data GameEvent = Select Cid
 
 type GameState =
   { cards :: M.Map Cid PhCard
@@ -95,22 +95,15 @@ type GameState =
 emptyGS :: GameState
 emptyGS = { cards : M.empty }
 
-updateGameState :: Array UiEvent -> Eff (ph :: PHASER) Unit
+updateGameState :: Array GameEvent -> Eff (ph :: PHASER) Unit
 updateGameState es = do
   -- handle events
   traverse_ update es
---  go (arrayToList es)
   -- update cards
   updateCards
   where
-    update :: UiEvent -> Eff (ph :: PHASER) Unit
+    update :: GameEvent -> Eff (ph :: PHASER) Unit
     update (Select cid) = selectCard cid
-    -- TODO: not sure if this is sensible, maybe create List on js side?
-    arrayToList :: forall a. Array a -> List a
-    arrayToList = fromFoldable
-    go :: List UiEvent -> Eff (ph :: PHASER) Unit
-    go Nil = pure unit
-    go (e:es) = update e *> go es
 
 updateCards :: Eff (ph :: PHASER) Unit
 updateCards = do
