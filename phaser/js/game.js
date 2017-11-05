@@ -40,6 +40,8 @@ var selectedCards = [];
 var gameState = PS.Main.emptyGS;
 var eventBuffer = [];
 
+var dragTrigger = "none";
+
 function preload() {
   game.load.image('card', 'assets/card.png');
   game.load.image('menu', 'assets/menu.png');
@@ -106,18 +108,32 @@ function create() {
 function update() {
   PS.Main.updateGameState(eventBuffer)();
   eventBuffer = [];
+
+  updateDragTrigger();
 }
 
 function render() {
   
 }
 
+function updateDragTrigger() {
+  if (dragTrigger != "none" && dragTrigger != "dragging") {
+    if (Math.abs(dragTrigger.x - game.input.x) > 2 && Math.abs(dragTrigger.y - game.input.y) > 2) {
+      dragTrigger.c.cardInfo.dragging = true;
+      dragTrigger = "dragging";
+    }
+  }
+}
+
 function cardInputDown(sprite, pointer) {
   console.log("cardInputDown, " + sprite.cardInfo.gid);
-  sprite.cardInfo.dragging = true;
+
+  dragTrigger = { x: pointer.x, y: pointer.y, c: sprite };
 }
 
 function cardInputUp(sprite, pointer) {
   console.log("cardInputUp, " + sprite.cardInfo.gid);
-  eventBuffer.push(new PS.Main.Click(sprite.cardInfo.gid));
+  eventBuffer.push(new PS.Main.Select(sprite.cardInfo.gid));
+
+  dragTrigger = "none";
 }
