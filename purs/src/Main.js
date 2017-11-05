@@ -28,6 +28,7 @@ exports.phMkCard=function(o) {
       gid: globalId,
       selected: false,
       dragging: false,
+      overlapped: false,
     };
 
     globalId++;
@@ -91,10 +92,12 @@ exports.hideCardSelectMenu=function() {
   cardDragProp.events.onInputDown.removeAll();
 };
 
-exports.checkOverlap=function(c1, c2) {
-  var bound1 = spriteA.getBounds();
-  var bound2 = spriteB.getBounds();
-  return Phaser.Rectangle.intersects(bound1, bound2);
+exports.checkOverlap=function(c1) {
+  return function(c2) {
+    var bound1 = c1.getBounds();
+    var bound2 = c2.getBounds();
+    return Phaser.Rectangle.intersects(bound1, bound2);
+  };
 };
 
 exports.gameState=function() {
@@ -107,8 +110,8 @@ exports.updateDraggedCard=function(card) {
     var newY = PS.Main.clamp(game.input.y - (cardH / 2))({lBound: 0, uBound: playRegionY - cardH});
     card.x = newX;
     card.y = newY;
-    card.cardInfo.packText.x = newX;
-    card.cardInfo.packText.y = newY;
+    card.cardInfo.packText.x = newX + 3;
+    card.cardInfo.packText.y = newY + 3;
   };
 };
 

@@ -82,6 +82,7 @@ type CardInfo =
   , gid :: Int
   , selected :: Boolean
   , dragging :: Boolean
+  , overlapped :: Boolean
   }
 
 type Cid = Int
@@ -111,8 +112,37 @@ updateCards = do
   traverse_ updateCard gs.cards
 
 updateCard :: PhCard -> Eff (ph :: PHASER) Unit
-updateCard c | isDragging c = updateDraggedCard c
+updateCard c | isDragging c = do
+  updateDraggedCard c
+  mOverlap <- findFirstOverlapCard c
+  case mOverlap of
+    Just overlap -> do
+      updateCardInfo overlap { overlapped: true }
+      setTint overlap 0xff0000
+    Nothing -> clearOverlaps
 updateCard _ = pure unit
+
+clearOverlaps :: Eff (ph :: PHASER) Unit
+clearOverlaps = do
+  gs <- gameState
+  traverse_ clearOverlap gs.cards
+  where
+    clearOverlap :: PhCard -> Eff (ph :: PHASER) Unit
+    clearOverlap c = do
+      updateCardInfo c { overlapped: false }
+      -- TODO: correctly set back to original tint
+      setTint c 0xffffff
+
+findFirstOverlapCard :: PhCard -> Eff (ph :: PHASER) (Maybe PhCard)
+findFirstOverlapCard c = do
+  gs <- gameState
+  let (dropped :: List PhCard) = dropWhile (\x -> overlapCondition x c) (M.values gs.cards)
+  pure $ head dropped
+  where
+    overlapCondition :: PhCard -> PhCard -> Boolean
+    overlapCondition c1 c2 | (cardInfo c1).gid == (cardInfo c2).gid = true
+    overlapCondition c1 c2 | checkOverlap c1 c2 = false
+    overlapCondition _ _ = true
 
 selectCard :: Cid -> Eff (ph :: PHASER) Unit
 selectCard cid = do

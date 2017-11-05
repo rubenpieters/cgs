@@ -118,7 +118,7 @@ function render() {
 
 function updateDragTrigger() {
   if (dragTrigger != "none" && dragTrigger != "dragging") {
-    if (Math.abs(dragTrigger.x - game.input.x) > 2 && Math.abs(dragTrigger.y - game.input.y) > 2) {
+    if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
       dragTrigger.c.cardInfo.dragging = true;
       dragTrigger = "dragging";
     }
