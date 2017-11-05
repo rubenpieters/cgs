@@ -8,17 +8,14 @@ exports.phMkCard=function(o) {
     card.height = cardH;
     card.width = cardW;
 
-    card.dragging = false;
-    card.selecting = false;
-    card.overlapping = false;
-    card.selected = false;
     card.inputEnabled = true;
-    card.input.enableDrag(false, true);
+    //  card.input.enableDrag(false, true);
     //  card.events.onDragStart.add(onDragStart, this);
     //  card.events.onDragStop.add(onDragStop, this);
     //  card.events.onInputOver.add(onInputOver, this);
     //  card.events.onInputOut.add(onInputOut, this);
-    card.events.onInputDown.add(onInputDown, this);
+    card.events.onInputDown.add(cardInputDown, this);
+    card.events.onInputUp.add(cardInputUp, this);
 
     var style = { font: "10px Arial", fill: "#ffffff", align: "center", stroke: "black", strokeThickness: 1};
     var packText = game.add.text(card.x + 3, card.y + 3, 1, style);
@@ -29,6 +26,8 @@ exports.phMkCard=function(o) {
       pack: [],
       packText: packText,
       gid: globalId,
+      selected: false,
+      dragging: false,
     };
 
     globalId++;
@@ -62,6 +61,22 @@ exports.updateCardTint=function(card) {
   };
 };
 
+exports.updateCardInfo=function(card) {
+  return function(newInfo) {
+    return function() {
+      Object.assign(card.cardInfo, newInfo);
+    };
+  };
+};
+
+exports.setTint=function(card) {
+  return function(color) {
+    return function() {
+      card.tint = color;
+    };
+  };
+};
+
 exports.showCardSelectMenu=function(card) {
   return function() {
     cardDragProp.visible = true;
@@ -84,5 +99,16 @@ exports.checkOverlap=function(c1, c2) {
 
 exports.gameState=function() {
   return gameState;
+};
+
+exports.updateDraggedCard=function(card) {
+  return function() {
+    var newX = PS.Main.clamp(game.input.x - (cardW / 2))({lBound: 0, uBound: playRegionX - cardW});
+    var newY = PS.Main.clamp(game.input.y - (cardH / 2))({lBound: 0, uBound: playRegionY - cardH});
+    card.x = newX;
+    card.y = newY;
+    card.cardInfo.packText.x = newX;
+    card.cardInfo.packText.y = newY;
+  };
 };
 

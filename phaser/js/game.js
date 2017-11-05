@@ -112,7 +112,12 @@ function render() {
   
 }
 
-function onInputDown(sprite, pointer) {
-  console.log("onInputDown, " + sprite.cardInfo.gid);
+function cardInputDown(sprite, pointer) {
+  console.log("cardInputDown, " + sprite.cardInfo.gid);
+  sprite.cardInfo.dragging = true;
+}
+
+function cardInputUp(sprite, pointer) {
+  console.log("cardInputUp, " + sprite.cardInfo.gid);
   eventBuffer.push(new PS.Main.Click(sprite.cardInfo.gid));
 }

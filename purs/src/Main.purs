@@ -6,8 +6,11 @@ import Data.Maybe
 import Data.List
 import Data.Map as M
 
+import Data.Foldable (traverse_)
 import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
+
+import Color
 
 main :: forall e. Eff e Unit
 main = do
@@ -22,6 +25,7 @@ clamp x b | x > b.uBound = b.uBound
 clamp x b | x < b.lBound = b.lBound
 clamp x _ = x
 
+{-
 data DragMode = Drag | Draw
 
 derive instance eqDragMode :: Eq DragMode
@@ -30,6 +34,7 @@ derive instance ordDragMode :: Ord DragMode
 nextDragMode :: DragMode -> DragMode
 nextDragMode Drag = Draw
 nextDragMode Draw = Drag
+-}
 
 foreign import data PHASER :: Effect
 foreign import data PhCard :: Type
@@ -42,6 +47,10 @@ foreign import showCardSelectMenu :: PhCard -> Eff (ph :: PHASER) Unit
 foreign import hideCardSelectMenu :: Eff (ph :: PHASER) Unit
 foreign import checkOverlap :: PhCard -> PhCard -> Boolean
 foreign import gameState :: Eff (ph :: PHASER) GameState
+foreign import updateDraggedCard :: PhCard -> Eff (ph :: PHASER) Unit
+foreign import setTint :: PhCard -> Int -> Eff (ph :: PHASER) Unit
+--foreign import setCardInfo :: PhCard -> CardInfo -> Eff (ph :: PHASER) Unit
+foreign import updateCardInfo :: forall e. PhCard -> { | e } -> Eff (ph :: PHASER) Unit
 
 updateCardSelectMenu :: Eff (ph :: PHASER) Unit
 updateCardSelectMenu = do
@@ -63,6 +72,8 @@ selectMode gs = case values of
 isSelected :: PhCard -> Boolean
 isSelected c = (cardInfo c).selected
 
+isDragging :: PhCard -> Boolean
+isDragging c = (cardInfo c).dragging
 
 type CardInfo =
   { texture :: String
@@ -70,11 +81,13 @@ type CardInfo =
   , packText :: String
   , gid :: Int
   , selected :: Boolean
+  , dragging :: Boolean
   }
 
 type Cid = Int
 
 data UiEvent = Click Cid
+             | Drag Cid
 
 type GameState =
   { cards :: M.Map Cid PhCard
@@ -84,10 +97,16 @@ emptyGS :: GameState
 emptyGS = { cards : M.empty }
 
 updateGameState :: Array UiEvent -> Eff (ph :: PHASER) Unit
-updateGameState es = go (arrayToList es)
+updateGameState es = do
+  -- handle events
+  go (arrayToList es)
+  -- update cards
+  updateCards
   where
     update :: UiEvent -> Eff (ph :: PHASER) Unit
     update (Click cid) = selectCard cid
+    update (Drag cid) = do
+        onCard cid updateDraggedCard
     -- TODO: not sure if this is sensible, maybe create List on js side?
     arrayToList :: forall a. Array a -> List a
     arrayToList = fromFoldable
@@ -95,15 +114,45 @@ updateGameState es = go (arrayToList es)
     go Nil = pure unit
     go (e:es) = update e *> go es
 
+updateCards :: Eff (ph :: PHASER) Unit
+updateCards = do
+  gs <- gameState
+  traverse_ updateCard gs.cards
+
+updateCard :: PhCard -> Eff (ph :: PHASER) Unit
+updateCard c | isDragging c = updateDraggedCard c
+updateCard _ = pure unit
 
 selectCard :: Cid -> Eff (ph :: PHASER) Unit
 selectCard cid = do
+  onCard cid selectCard'
+  --onCard cid toggleSelected
+  updateCardSelectMenu
+
+selectCard' :: PhCard -> Eff (ph :: PHASER) Unit
+selectCard' c | isDragging c = do
+  updateCardInfo c { dragging: false}
+selectCard' c | isSelected c = do
+  updateCardInfo c {selected: false}
+  setTint c 0xffffff
+selectCard' c | not (isSelected c) = do
+  updateCardInfo c {selected: true}
+  setTint c 0x00ff00
+selectCard' c = pure unit
+
+cardTint :: PhCard -> Color
+cardTint c | isSelected c = rgb 0 255 0
+cardTint c = rgb 0 0 0
+
+onCard :: Cid
+       -> (PhCard -> Eff (ph :: PHASER) Unit)
+       -> Eff (ph :: PHASER) Unit
+onCard cid f = do
   gs :: GameState <- gameState
   let (mc :: Maybe PhCard) = M.lookup cid gs.cards
   case mc of
-    Just (c :: PhCard) -> toggleSelected c
+    Just (c :: PhCard) -> f c
     Nothing -> pure unit
-  updateCardSelectMenu
 
 addNewCard :: GameState -> Eff (ph :: PHASER) GameState
 addNewCard gs =
