@@ -37,24 +37,8 @@ var allCards = [];
 var draggedCards = [];
 var selectedCards = [];
 
-function selectMode() {
-  var filtered = selectedCards.filter(function(c) { return c != null})
-  if (filtered.length == 0) {
-    return "none";
-  } else if (filtered.length == 1) {
-    return "single";
-  } else {
-    return "multiple"
-  }
-}
-
-function selectedCard() {
-  return selectedCards.find(function(c) {
-    if (c != null) {
-      return c;
-    }
-  });
-}
+var gameState = PS.Main.emptyGS;
+var eventBuffer = [];
 
 function preload() {
   game.load.image('card', 'assets/card.png');
@@ -73,7 +57,7 @@ function create() {
   bottomMenu.width = gameW;
 
   // - bottom - create card button
-  var button = game.add.button(10, playRegionY + 10, 'empty', createCardClick, this, 2, 1, 0);
+  var button = game.add.button(10, playRegionY + 10, 'empty', PS.Main.phMkCard({x: 100, y: 100, textureName: 'card'}), this, 2, 1, 0);
   button.height = 20;
   button.width = 50;
   var style = { font: "10px Arial", fill: "#000000", align: "center" };
@@ -103,7 +87,7 @@ function create() {
 
   // Cards
   cardGroup = game.add.group();
-  addNewCard();
+  PS.Main.phMkCard({x: 10, y: 10, textureName: 'card'})();
 
   // Popup Menu
   popupGroup = game.add.group();
@@ -119,266 +103,16 @@ function create() {
   popupGroup.add(overlapDropMenu);
 }
 
-function addNewCard() {
-  var newCard = PS.Main.phMkCard(newCardMarker.x, newCardMarker.y, 'card');
-  newCardMarker.x += 5;
-  newCardMarker.y += 7;
-  allCards[newCard.cardInfo.gid] = newCard;
-  cardGroup.add(newCard);
-  return newCard;
-}
-
-function mkCard(x, y, textureName) {
-  var card = game.add.sprite(x, y, textureName);
-  card.height = cardH;
-  card.width = cardW;
-
-  card.dragging = false;
-  card.selecting = false;
-  card.overlapping = false;
-  card.selected = false;
-  card.inputEnabled = true;
-  card.input.enableDrag(false, true);
-  card.events.onDragStart.add(onDragStart, this);
-  card.events.onDragStop.add(onDragStop, this);
-  card.events.onInputOver.add(onInputOver, this);
-  card.events.onInputOut.add(onInputOut, this);
-
-  var style = { font: "10px Arial", fill: "#ffffff", align: "center", stroke: "black", strokeThickness: 1};
-  var packText = game.add.text(card.x + 3, card.y + 3, 1, style);
-//  packText.visible = false;
-
-  card.cardInfo = {
-    texture: "card",
-    pack: [],
-    packText: packText,
-    gid: globalId,
-    dragMode: "drag",
-  };
-  globalId++;
-  return card;
+function update() {
+  PS.Main.updateGameState(eventBuffer)();
+  eventBuffer = [];
 }
 
 function render() {
-  allCards.forEach(function(card) {
-    game.debug.spriteBounds(card);
-  });
-  draggedCards.forEach(function(card) {
-    game.debug.spriteBounds(card);
-  });
-  selectedCards.forEach(function(card) {
-    game.debug.spriteBounds(card);
-  });
+  
 }
 
-function update() {
-  // clear info overlapping card
-  if (overlapCard != null) {
-    overlapCard = null;
-  }
-  infoText.setText("");
-
-  draggedCards.forEach(function(card) {
-    if (card != null) {
-      // update card text
-      card.cardInfo.packText.x = card.x + 3;
-      card.cardInfo.packText.y = card.y + 3;
-      card.cardInfo.packText.setText(card.cardInfo.pack.length + 1);
-      card.cardInfo.packText.visible = card.visible;
-
-      // clamp x/y position
-      card.x = PS.Main.clamp(card.x)({lBound: 0, uBound: playRegionX - cardW});
-      card.y = PS.Main.clamp(card.y)({lBound: 0, uBound: playRegionY - cardH});
-
-      // highlight card overlap
-      var overlap = firstOverlappingCard(card);
-      if (overlap != null) {
-        overlapCard = overlap;
-      }
-
-      card.tint = 0xffffff;
-    }
-  });
-
-  selectedCards.forEach(function(card) {
-    if (card != null) {
-      // update card text
-      card.cardInfo.packText.setText(card.cardInfo.pack.length + 1);
-      card.cardInfo.packText.visible = card.visible;
-
-      card.tint = 0x558855;
-    }
-  });
-
-  allCards.forEach(function(card) {
-    if (card != null) {
-      // update card text
-      card.cardInfo.packText.setText(card.cardInfo.pack.length + 1);
-      card.cardInfo.packText.visible = card.visible;
-
-      card.tint = 0xffffff;
-    }
-  });
-
-  if (overlapCard != null) {
-    overlapCard.tint = 0x885555;
-  }
-
-  if (selectMode() === "single") {
-    cardDragPropText.setText("dragMode: " + selectedCard().cardInfo.dragMode);
-  }
-}
-
-function firstOverlappingCard(card) {
-  var result = allCards.find(function(c) {
-    if (c != null) {
-      return (!(card.x === c.x && card.y === c.y)) && checkOverlap(card, c);
-    }
-  });
-  if (result != null)
-    return result;
-  return selectedCards.find(function(c) {
-    if (c != null) {
-      return (!(card.x === c.x && card.y === c.y)) && checkOverlap(card, c);
-    }
-  });
-}
-
-function checkOverlap(spriteA, spriteB) {
-  var boundsA = spriteA.getBounds();
-  var boundsB = spriteB.getBounds();
-  return Phaser.Rectangle.intersects(boundsA, boundsB);
-}
-
-function onInputOver(sprite, pointer) {
-  if ('cardInfo' in sprite) {
-    preview.loadTexture(sprite.cardInfo.texture, 0, false);
-    preview.height = prevH;
-    preview.width = prevW;
-  }
-}
-
-function onInputOut(sprite, pointer) {
-  console.log("onInputOut");
-  if (typeof selectedCards[sprite.cardInfo.gid] == 'undefined') {
-    delete draggedCards[sprite.cardInfo.gid];
-    delete selectedCards[sprite.cardInfo.gid];
-    allCards[sprite.cardInfo.gid] = sprite;
-  }
-}
-
-function onDragStart(sprite, pointer) {
-  console.log("onDragStart");
-  if (sprite.cardInfo.pack.length === 0 || sprite.cardInfo.dragMode === "drag") {
-    var origLoc;
-    if (typeof allCards[sprite.cardInfo.gid] != 'undefined') {
-      origLoc = "all";
-    } else if (typeof selectedCards[sprite.cardInfo.gid] != 'undefined') {
-      origLoc = "selected";
-    } else {
-      throw "no original location";
-    }
-    delete allCards[sprite.cardInfo.gid];
-    delete selectedCards[sprite.cardInfo.gid];
-    draggedCards[sprite.cardInfo.gid] = sprite;
-    sprite.events.onDragStop.removeAll();
-    sprite.events.onDragStop.add(onDragStop(sprite.x, sprite.y, origLoc));
-  } else {
-    console.log("drawing");
-    var drawnCard = sprite.cardInfo.pack.shift();
-    drawnCard.reset(sprite.x, sprite.y);
-
-    // swap info
-    var drawnInfo = drawnCard.cardInfo;
-    var packInfo = sprite.cardInfo;
-    drawnCard.cardInfo = packInfo;
-    sprite.cardInfo = drawnInfo;
-
-    draggedCards[sprite.cardInfo.gid] = sprite;
-
-    sprite.events.onDragStop.removeAll();
-    sprite.events.onDragStop.add(onDragStop(sprite.x, sprite.y, "all"));
-  }
-}
-
-function onDragStop(origX, origY, origLoc) {
-    return function(sprite, pointer) {
-    console.log("onDragStop");
-    // clamp x/y position
-    sprite.x = PS.Main.clamp(sprite.x)({lBound: 0, uBound: playRegionX - cardW});
-    sprite.y = PS.Main.clamp(sprite.y)({lBound: 0, uBound: playRegionY - cardH});
-
-    // update card text
-    sprite.cardInfo.packText.x = sprite.x + 3;
-    sprite.cardInfo.packText.y = sprite.y + 3;
-    sprite.cardInfo.packText.setText(sprite.cardInfo.pack.length + 1);
-    sprite.cardInfo.packText.visible = sprite.visible;
-
-    delete draggedCards[sprite.cardInfo.gid];
-
-    if (Math.abs(origX - sprite.x) > 1 && Math.abs(origY - sprite.y) > 1) {
-      if (origLoc === "selected") {
-        selectedCards[sprite.cardInfo.gid] = sprite;
-      } else if (origLoc === "all") {
-        allCards[sprite.cardInfo.gid] = sprite;
-      } else {
-        throw "unexpected origLoc";
-      }
-
-      if (overlapCard != null) {
-        overlapDropMenu.x = sprite.x;
-        overlapDropMenu.y = sprite.y;
-        sprite.visible = false;
-        overlapDropMenu.events.onInputDown.add(overlapDropClick(sprite, overlapCard));
-        overlapDropMenu.visible = true;
-      }
-    } else {
-      if (origLoc === "selected") {
-        allCards[sprite.cardInfo.gid] = sprite;
-      } else if (origLoc === "all") {
-        selectedCards[sprite.cardInfo.gid] = sprite;
-      } else {
-        throw "unexpected origLoc";
-      }
-      updateSelectMenu();
-    }
-  }
-}
-
-function updateSelectMenu() {
-  if (selectMode() === "single") {
-    cardDragProp.visible = true;
-    cardDragPropText.visible = true;
-    cardDragProp.events.onInputDown.add(toggleCardDrag(selectedCard()));
-  } else {
-    cardDragProp.visible = false;
-    cardDragPropText.visible = false;
-    cardDragProp.events.onInputDown.removeAll();
-  }
-}
-
-function createCardClick(sprite, pointer) {
-  addNewCard();
-}
-
-function overlapDropClick(draggedCard, overlapCard) {
-  return function () {
-    overlapCard.cardInfo.pack.push(draggedCard);
-    overlapCard.cardInfo.pack = overlapCard.cardInfo.pack.concat(draggedCard.cardInfo.pack);
-    draggedCard.cardInfo.pack = [];
-    delete draggedCards[draggedCard.cardInfo.gid];
-    draggedCard.kill();
-    overlapDropMenu.visible = false;
-    overlapDropMenu.events.onInputDown.removeAll();
-  };
-}
-
-function toggleCardDrag(card) {
-  return function () {
-    if (card.cardInfo.dragMode === "drag") {
-      card.cardInfo.dragMode = "draw"
-    } else if (card.cardInfo.dragMode === "draw") {
-      card.cardInfo.dragMode = "drag"
-    }
-  }
+function onInputDown(sprite, pointer) {
+  console.log("onInputDown, " + sprite.cardInfo.gid);
+  eventBuffer.push(new PS.Main.Click(sprite.cardInfo.gid));
 }
