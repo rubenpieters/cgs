@@ -115,3 +115,13 @@ exports.updateDraggedCard=function(card) {
   };
 };
 
+exports.phaserProps=function(card) {
+  return card;
+};
+
+exports.phKill=function(o) {
+  return function() {
+    o.cardInfo.packText.kill();
+    o.kill();
+  };
+};

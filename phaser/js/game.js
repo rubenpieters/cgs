@@ -103,6 +103,14 @@ function create() {
   overlapDropMenu.width = 50;
   overlapDropMenu.visible = false;
   popupGroup.add(overlapDropMenu);
+
+  // Key - A
+  var keyA = game.input.keyboard.addKey(Phaser.Keyboard.A);
+  keyA.onDown.add(PS.Main.phMkCard({x: 100, y: 100, textureName: 'card'}), this);
+
+  // Key - G
+  var keyG = game.input.keyboard.addKey(Phaser.Keyboard.G);
+  keyG.onDown.add(function () { eventBuffer.push(new PS.Main.Gather()); });
 }
 
 function update() {

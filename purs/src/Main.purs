@@ -3,10 +3,10 @@ module Main where
 import Prelude
 
 import Data.Maybe
-import Data.List
+import Data.List hiding (null, length)
 import Data.Map as M
 
-import Data.Foldable (traverse_)
+import Data.Foldable
 import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
 
@@ -42,6 +42,7 @@ foreign import data PhCard :: Type
 foreign import phMkCard :: {x :: Int, y :: Int, textureName :: String}
                         -> Eff (ph :: PHASER) PhCard
 foreign import cardInfo :: PhCard -> CardInfo
+foreign import phaserProps :: PhCard -> PhaserProps
 foreign import toggleSelected :: PhCard -> Eff (ph :: PHASER) Unit
 foreign import showCardSelectMenu :: PhCard -> Eff (ph :: PHASER) Unit
 foreign import hideCardSelectMenu :: Eff (ph :: PHASER) Unit
@@ -50,7 +51,9 @@ foreign import gameState :: Eff (ph :: PHASER) GameState
 foreign import updateDraggedCard :: PhCard -> Eff (ph :: PHASER) Unit
 foreign import setTint :: PhCard -> Int -> Eff (ph :: PHASER) Unit
 --foreign import setCardInfo :: PhCard -> CardInfo -> Eff (ph :: PHASER) Unit
-foreign import updateCardInfo :: forall e. PhCard -> { | e } -> Eff (ph :: PHASER) Unit
+foreign import updateCardInfo :: ∀ e. PhCard -> { | e } -> Eff (ph :: PHASER) Unit
+
+foreign import phKill :: PhCard -> Eff (ph :: PHASER) Unit
 
 updateCardSelectMenu :: Eff (ph :: PHASER) Unit
 updateCardSelectMenu = do
@@ -85,9 +88,14 @@ type CardInfo =
   , overlapped :: Boolean
   }
 
+type PhaserProps =
+  { x :: Int
+  , y :: Int
+  }
+
 type Cid = Int
 
-data GameEvent = Select Cid
+data GameEvent = Select Cid | Gather | Remove Cid
 
 type GameState =
   { cards :: M.Map Cid PhCard
@@ -105,6 +113,8 @@ updateGameState es = do
   where
     update :: GameEvent -> Eff (ph :: PHASER) Unit
     update (Select cid) = selectCard cid
+    update Gather = gatherCards
+    update (Remove cid) = removeCard cid
 
 updateCards :: Eff (ph :: PHASER) Unit
 updateCards = do
@@ -185,3 +195,26 @@ addCard :: PhCard -> GameState -> GameState
 addCard c gs =  gs { cards = M.insert cid c gs.cards }
     where cid = (cardInfo c).gid
 
+averagePos :: ∀ p f. Foldable f
+           => Functor f
+           => f {x :: Int, y :: Int | p}
+           -> {x :: Int, y :: Int}
+averagePos l =
+  let {tx:totx, ty:toty, l:length} = foldr (\a {tx:tx,ty:ty,l:l} -> {tx:tx+a.x,ty:ty+a.y,l:l+1}) {tx:0,ty:0,l:0} l in
+  {x: totx/length, y: toty/length}
+
+gatherCards :: Eff (ph :: PHASER) Unit
+gatherCards = do
+  gs <- gameState
+  let (selectedCards :: List PhCard) = filter isSelected (M.values gs.cards)
+  if (length selectedCards) <= 1
+     then pure unit
+     else do
+            let avgPos = averagePos (phaserProps <$> selectedCards)
+            c <- phMkCard {x: avgPos.x, y: avgPos.y, textureName: "card"}
+            -- add all cards to c
+            traverse_ phKill selectedCards
+            pure unit
+
+removeCard :: Cid -> Eff (ph :: PHASER) Unit
+removeCard cid = onCard cid phKill
