@@ -59,7 +59,7 @@ function create() {
   bottomMenu.width = gameW;
 
   // - bottom - create card button
-  var button = game.add.button(10, playRegionY + 10, 'empty', PS.Main.phMkCard({x: 100, y: 100, textureName: 'card'}), this, 2, 1, 0);
+  var button = game.add.button(10, playRegionY + 10, 'empty', PS.Main.phMkCard({x: 100, y: 100, pack: [{texture: 'card'}]}), this, 2, 1, 0);
   button.height = 20;
   button.width = 50;
   var style = { font: "10px Arial", fill: "#000000", align: "center" };
@@ -89,7 +89,7 @@ function create() {
 
   // Cards
   cardGroup = game.add.group();
-  PS.Main.phMkCard({x: 10, y: 10, textureName: 'card'})();
+  PS.Main.phMkCard({x: 10, y: 10, pack: [{texture: 'card'}]})();
 
   // Popup Menu
   popupGroup = game.add.group();
@@ -106,7 +106,7 @@ function create() {
 
   // Key - A
   var keyA = game.input.keyboard.addKey(Phaser.Keyboard.A);
-  keyA.onDown.add(PS.Main.phMkCard({x: 100, y: 100, textureName: 'card'}), this);
+  keyA.onDown.add(PS.Main.phMkCard({x: 100, y: 100, pack: [{texture: 'card'}]}), this);
 
   // Key - G
   var keyG = game.input.keyboard.addKey(Phaser.Keyboard.G);
@@ -127,21 +127,21 @@ function render() {
 function updateDragTrigger() {
   if (dragTrigger != "none" && dragTrigger != "dragging") {
     if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
-      dragTrigger.c.cardInfo.dragging = true;
+      dragTrigger.c.pack.dragging = true;
       dragTrigger = "dragging";
     }
   }
 }
 
 function cardInputDown(sprite, pointer) {
-  console.log("cardInputDown, " + sprite.cardInfo.gid);
+  console.log("cardInputDown, " + sprite.pack.gid);
 
   dragTrigger = { x: pointer.x, y: pointer.y, c: sprite };
 }
 
 function cardInputUp(sprite, pointer) {
-  console.log("cardInputUp, " + sprite.cardInfo.gid);
-  eventBuffer.push(new PS.Main.Select(sprite.cardInfo.gid));
+  console.log("cardInputUp, " + sprite.pack.gid);
+  eventBuffer.push(new PS.Main.Select(sprite.pack.gid));
 
   dragTrigger = "none";
 }

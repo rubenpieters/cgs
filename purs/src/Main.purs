@@ -3,10 +3,13 @@ module Main where
 import Prelude
 
 import Data.Maybe
+import Data.Tuple
+import Data.Array (toUnfoldable, fromFoldable)
 import Data.List hiding (null, length)
 import Data.Map as M
-
 import Data.Foldable
+import Data.Traversable
+
 import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
 
@@ -39,10 +42,11 @@ nextDragMode Draw = Drag
 foreign import data PHASER :: Effect
 foreign import data PhCard :: Type
 
-foreign import phMkCard :: {x :: Int, y :: Int, textureName :: String}
+foreign import phMkCard :: {x :: Int, y :: Int, pack :: Array Card}
                         -> Eff (ph :: PHASER) PhCard
-foreign import cardInfo :: PhCard -> CardInfo
-foreign import phaserProps :: PhCard -> PhaserProps
+--foreign import cardInfo :: PhCard -> CardInfo
+foreign import packInfo :: PhCard -> Eff (ph :: PHASER) Pack
+foreign import phaserProps :: PhCard -> Eff (ph :: PHASER) PhaserProps
 foreign import toggleSelected :: PhCard -> Eff (ph :: PHASER) Unit
 foreign import showCardSelectMenu :: PhCard -> Eff (ph :: PHASER) Unit
 foreign import hideCardSelectMenu :: Eff (ph :: PHASER) Unit
@@ -58,34 +62,43 @@ foreign import phKill :: PhCard -> Eff (ph :: PHASER) Unit
 updateCardSelectMenu :: Eff (ph :: PHASER) Unit
 updateCardSelectMenu = do
   gs <- gameState
-  case (selectMode gs) of
+  sm <- selectMode gs
+  case sm of
     (Single c) -> showCardSelectMenu c
     Other -> hideCardSelectMenu
 
 data SelectMode = Single PhCard | Other
 
-selectMode :: GameState -> SelectMode
-selectMode gs = case values of
-  (c:Nil) -> Single c
-  _ -> Other
+selectMode :: GameState -> Eff (ph :: PHASER) SelectMode
+selectMode gs = do
+  f <- filtered
+  pure case f of
+    (c:Nil) -> Single c
+    _ -> Other
   where
-    filtered = M.filter (\c -> isSelected c) gs.cards
-    values = M.values filtered
+    filtered = filterM (\c -> isSelected c) (M.values gs.cards)
 
-isSelected :: PhCard -> Boolean
-isSelected c = (cardInfo c).selected
+isSelected :: PhCard -> Eff (ph :: PHASER) Boolean
+isSelected c = do
+  pi <- packInfo c
+  pure pi.selected
 
-isDragging :: PhCard -> Boolean
-isDragging c = (cardInfo c).dragging
+isDragging :: PhCard -> Eff (ph :: PHASER) Boolean
+isDragging c = do
+  pi <- packInfo c
+  pure pi.dragging
 
-type CardInfo =
-  { texture :: String
-  , pack :: List PhCard
+type Pack =
+  { pack :: Array Card
   , packText :: String
   , gid :: Int
   , selected :: Boolean
   , dragging :: Boolean
   , overlapped :: Boolean
+  }
+
+type Card =
+  { texture :: String
   }
 
 type PhaserProps =
@@ -122,15 +135,18 @@ updateCards = do
   traverse_ updateCard gs.cards
 
 updateCard :: PhCard -> Eff (ph :: PHASER) Unit
-updateCard c | isDragging c = do
-  updateDraggedCard c
-  mOverlap <- findFirstOverlapCard c
-  case mOverlap of
-    Just overlap -> do
-      updateCardInfo overlap { overlapped: true }
-      setTint overlap 0xff0000
-    Nothing -> clearOverlaps
-updateCard _ = pure unit
+updateCard c = do
+  d <- isDragging c
+  if d
+     then do
+            updateDraggedCard c
+            mOverlap <- findFirstOverlapCard c
+            case mOverlap of
+              Just overlap -> do
+                updateCardInfo overlap { overlapped: true }
+                setTint overlap 0xff0000
+              Nothing -> clearOverlaps
+     else pure unit
 
 clearOverlaps :: Eff (ph :: PHASER) Unit
 clearOverlaps = do
@@ -145,13 +161,16 @@ clearOverlaps = do
 
 findFirstOverlapCard :: PhCard -> Eff (ph :: PHASER) (Maybe PhCard)
 findFirstOverlapCard c = do
+  xp <- packInfo c
   gs <- gameState
-  let (dropped :: List PhCard) = dropWhile (\x -> overlapCondition x c) (M.values gs.cards)
+  let cards = M.values gs.cards
+  p1 <- traverse packInfo cards
+  let (dropped :: List PhCard) = snd <$> dropWhile (\x -> overlapCondition x (Tuple xp c)) (zip p1 cards)
   pure $ head dropped
   where
-    overlapCondition :: PhCard -> PhCard -> Boolean
-    overlapCondition c1 c2 | (cardInfo c1).gid == (cardInfo c2).gid = true
-    overlapCondition c1 c2 | checkOverlap c1 c2 = false
+    overlapCondition :: Tuple Pack PhCard -> Tuple Pack PhCard -> Boolean
+    overlapCondition (Tuple p1 _) (Tuple p2 _) | p1.gid == p2.gid = true
+    overlapCondition (Tuple _ c1) (Tuple _ c2) | checkOverlap c1 c2 = false
     overlapCondition _ _ = true
 
 selectCard :: Cid -> Eff (ph :: PHASER) Unit
@@ -161,19 +180,26 @@ selectCard cid = do
   updateCardSelectMenu
 
 selectCard' :: PhCard -> Eff (ph :: PHASER) Unit
-selectCard' c | isDragging c = do
+selectCard' c = do
+  d <- isDragging c
+  s <- isSelected c
+  selectAction c {dragging: d, selected: s}
+
+selectAction :: PhCard -> {dragging :: Boolean, selected :: Boolean} -> Eff (ph :: PHASER) Unit
+selectAction c p | p.dragging = do
   updateCardInfo c { dragging: false}
-selectCard' c | isSelected c = do
+selectAction c p | p.selected = do
   updateCardInfo c {selected: false}
   setTint c 0xffffff
-selectCard' c | not (isSelected c) = do
+selectAction c p | not (p.selected) = do
   updateCardInfo c {selected: true}
   setTint c 0x00ff00
-selectCard' c = pure unit
+selectAction c p = pure unit
 
-cardTint :: PhCard -> Color
-cardTint c | isSelected c = rgb 0 255 0
-cardTint c = rgb 0 0 0
+
+--cardTint :: PhCard -> Color
+--cardTint c | isSelected c = rgb 0 255 0
+--cardTint c = rgb 0 0 0
 
 onCard :: Cid
        -> (PhCard -> Eff (ph :: PHASER) Unit)
@@ -185,15 +211,17 @@ onCard cid f = do
     Just (c :: PhCard) -> f c
     Nothing -> pure unit
 
-addNewCard :: GameState -> Eff (ph :: PHASER) GameState
+{-addNewCard :: GameState -> Eff (ph :: PHASER) GameState
 addNewCard gs =
   do
-    c <- phMkCard { x: 1, y: 1, textureName: "card" }
+    c <- phMkCard { x: 1, y: 1, pack: [{texture: "card"}]}
     pure $ addCard c gs
+-}
 
-addCard :: PhCard -> GameState -> GameState
-addCard c gs =  gs { cards = M.insert cid c gs.cards }
-    where cid = (cardInfo c).gid
+addCard :: PhCard -> GameState -> Eff (ph :: PHASER) GameState
+addCard c gs = do
+  pi <- packInfo c
+  pure gs { cards = M.insert pi.gid c gs.cards }
 
 averagePos :: ∀ p f. Foldable f
            => Functor f
@@ -206,15 +234,24 @@ averagePos l =
 gatherCards :: Eff (ph :: PHASER) Unit
 gatherCards = do
   gs <- gameState
-  let (selectedCards :: List PhCard) = filter isSelected (M.values gs.cards)
+  selectedCards :: List PhCard <- filterM isSelected (M.values gs.cards)
   if (length selectedCards) <= 1
      then pure unit
      else do
-            let avgPos = averagePos (phaserProps <$> selectedCards)
-            c <- phMkCard {x: avgPos.x, y: avgPos.y, textureName: "card"}
+            props <- traverse phaserProps selectedCards
+            let avgPos = averagePos props
+            packs <- traverse packInfo selectedCards
+            let (cards :: List Card) = concat $ (arrayToList <<< _.pack) <$> packs
+            c <- phMkCard {x: avgPos.x, y: avgPos.y, pack: listToArray cards}
             -- add all cards to c
             traverse_ phKill selectedCards
             pure unit
+
+arrayToList :: ∀ a. Array a -> List a
+arrayToList = toUnfoldable
+
+listToArray :: ∀ a. List a -> Array a
+listToArray = fromFoldable
 
 removeCard :: Cid -> Eff (ph :: PHASER) Unit
 removeCard cid = onCard cid phKill

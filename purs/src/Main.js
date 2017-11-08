@@ -1,10 +1,11 @@
 "use strict";
 
-// {x :: Int, y :: Int, textureName :: String}
+// {x :: Int, y :: Int, pack :: Array Card}
 exports.phMkCard=function(o) {
   return function() {
     console.log("mk card");
-    var card = game.add.sprite(o.x, o.y, o.textureName);
+    console.log("texture: " + o.pack[0].texture);
+    var card = game.add.sprite(o.x, o.y, o.pack[0].texture);
     card.height = cardH;
     card.width = cardW;
 
@@ -18,12 +19,11 @@ exports.phMkCard=function(o) {
     card.events.onInputUp.add(cardInputUp, this);
 
     var style = { font: "10px Arial", fill: "#ffffff", align: "center", stroke: "black", strokeThickness: 1};
-    var packText = game.add.text(card.x + 3, card.y + 3, 1, style);
+    var packText = game.add.text(card.x + 3, card.y + 3, o.pack.length, style);
     //  packText.visible = false;
 
-    card.cardInfo = {
-      texture: 'card',
-      pack: [],
+    card.pack = {
+      pack: o.pack,
       packText: packText,
       gid: globalId,
       selected: false,
@@ -34,27 +34,29 @@ exports.phMkCard=function(o) {
     globalId++;
     newCardMarker.x += 5;
     newCardMarker.y += 7;
-    gameState = PS.Main.addCard(card)(gameState);
+    gameState = PS.Main.addCard(card)(gameState)();
     cardGroup.add(card);
 
     return card;
   };
 };
 
-exports.cardInfo=function(card) {
-  return card.cardInfo;
+exports.packInfo=function(card) {
+  return function() {
+    return card.pack;
+  };
 };
 
 exports.toggleSelected=function(card) {
   return function() {
-    card.cardInfo.selected = ! card.cardInfo.selected;
+    card.pack.selected = ! card.pack.selected;
     PS.Main.updateCardTint(card)();
   };
 };
 
 exports.updateCardTint=function(card) {
   return function() {
-    if (card.cardInfo.selected) {
+    if (card.pack.selected) {
       card.tint = 0x00ff00;
     } else {
       card.tint = 0xffffff;
@@ -65,7 +67,7 @@ exports.updateCardTint=function(card) {
 exports.updateCardInfo=function(card) {
   return function(newInfo) {
     return function() {
-      Object.assign(card.cardInfo, newInfo);
+      Object.assign(card.pack, newInfo);
     };
   };
 };
@@ -110,18 +112,20 @@ exports.updateDraggedCard=function(card) {
     var newY = PS.Main.clamp(game.input.y - (cardH / 2))({lBound: 0, uBound: playRegionY - cardH});
     card.x = newX;
     card.y = newY;
-    card.cardInfo.packText.x = newX + 3;
-    card.cardInfo.packText.y = newY + 3;
+    card.pack.packText.x = newX + 3;
+    card.pack.packText.y = newY + 3;
   };
 };
 
 exports.phaserProps=function(card) {
-  return card;
+  return function() {
+    return card;
+  };
 };
 
 exports.phKill=function(o) {
   return function() {
-    o.cardInfo.packText.kill();
+    o.pack.packText.kill();
     o.kill();
   };
 };
