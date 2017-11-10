@@ -4,7 +4,6 @@
 exports.phMkCard=function(o) {
   return function() {
     console.log("mk card");
-    console.log("texture: " + o.pack[0].texture);
     var card = game.add.sprite(o.x, o.y, o.pack[0].texture);
     card.height = cardH;
     card.width = cardW;

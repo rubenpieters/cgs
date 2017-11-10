@@ -99,6 +99,7 @@ type Pack =
 
 type Card =
   { texture :: String
+  , textureBack :: String
   }
 
 type PhaserProps =
@@ -200,6 +201,14 @@ selectAction c p = pure unit
 --cardTint :: PhCard -> Color
 --cardTint c | isSelected c = rgb 0 255 0
 --cardTint c = rgb 0 0 0
+
+{-
+toggleSelectProps :: Pack -> {dragging :: Boolean, selected :: Boolean, tint :: String}
+toggleSelectProps p | p.dragging = { dragging: false, selected: p.selected, tint: "" }
+toggleSelectProps p | p.selected = { selected: false }
+toggleSelectProps p | not p.selected = { selected: true }
+toggleSelectedProps p = p
+-}
 
 onCard :: Cid
        -> (PhCard -> Eff (ph :: PHASER) Unit)

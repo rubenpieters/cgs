@@ -40,7 +40,7 @@ var selectedCards = [];
 var gameState = PS.Main.emptyGS;
 var eventBuffer = [];
 
-var dragTrigger = "none";
+var dragTrigger = { status: 'none' };
 
 function preload() {
   game.load.image('card', 'assets/card.png');
@@ -59,7 +59,7 @@ function create() {
   bottomMenu.width = gameW;
 
   // - bottom - create card button
-  var button = game.add.button(10, playRegionY + 10, 'empty', PS.Main.phMkCard({x: 100, y: 100, pack: [{texture: 'card'}]}), this, 2, 1, 0);
+  var button = game.add.button(10, playRegionY + 10, 'empty', PS.Main.phMkCard({x: 100, y: 100, pack: [{texture: 'card', textureBack: 'empty'}]}), this, 2, 1, 0);
   button.height = 20;
   button.width = 50;
   var style = { font: "10px Arial", fill: "#000000", align: "center" };
@@ -89,7 +89,7 @@ function create() {
 
   // Cards
   cardGroup = game.add.group();
-  PS.Main.phMkCard({x: 10, y: 10, pack: [{texture: 'card'}]})();
+  PS.Main.phMkCard({x: 10, y: 10, pack: [{texture: 'card', textureBack: 'empty'}]})();
 
   // Popup Menu
   popupGroup = game.add.group();
@@ -106,7 +106,7 @@ function create() {
 
   // Key - A
   var keyA = game.input.keyboard.addKey(Phaser.Keyboard.A);
-  keyA.onDown.add(PS.Main.phMkCard({x: 100, y: 100, pack: [{texture: 'card'}]}), this);
+  keyA.onDown.add(PS.Main.phMkCard({x: 100, y: 100, pack: [{texture: 'card', textureBack: 'empty'}]}), this);
 
   // Key - G
   var keyG = game.input.keyboard.addKey(Phaser.Keyboard.G);
@@ -125,10 +125,10 @@ function render() {
 }
 
 function updateDragTrigger() {
-  if (dragTrigger != "none" && dragTrigger != "dragging") {
+  if (dragTrigger.status != "none" && dragTrigger.status != "dragging" && dragTrigger.left) {
     if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
       dragTrigger.c.pack.dragging = true;
-      dragTrigger = "dragging";
+      dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right };
     }
   }
 }
@@ -136,12 +136,20 @@ function updateDragTrigger() {
 function cardInputDown(sprite, pointer) {
   console.log("cardInputDown, " + sprite.pack.gid);
 
-  dragTrigger = { x: pointer.x, y: pointer.y, c: sprite };
+  var leftDown = pointer.leftButton.isDown;
+  var rightDown = pointer.rightButton.isDown;
+
+  dragTrigger = { x: pointer.x, y: pointer.y, c: sprite, left: leftDown, right: rightDown };
 }
 
 function cardInputUp(sprite, pointer) {
   console.log("cardInputUp, " + sprite.pack.gid);
-  eventBuffer.push(new PS.Main.Select(sprite.pack.gid));
+  if (dragTrigger.left) {
+    eventBuffer.push(new PS.Main.Select(sprite.pack.gid));
+  } else if (dragTrigger.right) {
+    // TODO: only right-click if mouse bounds are still within card bounds?
+    console.log("right click!");
+  }
 
-  dragTrigger = "none";
+  dragTrigger = { status: "none" };
 }
