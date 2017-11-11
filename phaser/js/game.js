@@ -59,7 +59,7 @@ function create() {
   bottomMenu.width = gameW;
 
   // - bottom - create card button
-  var button = game.add.button(10, playRegionY + 10, 'empty', PS.Main.phMkCard({x: 100, y: 100, pack: [{texture: 'card', textureBack: 'empty'}]}), this, 2, 1, 0);
+  var button = game.add.button(10, playRegionY + 10, 'empty', PS.Main.phMkCard({x: 100, y: 100, pack: [PS.Main.newCard]}), this, 2, 1, 0);
   button.height = 20;
   button.width = 50;
   var style = { font: "10px Arial", fill: "#000000", align: "center" };
@@ -89,7 +89,7 @@ function create() {
 
   // Cards
   cardGroup = game.add.group();
-  PS.Main.phMkCard({x: 10, y: 10, pack: [{texture: 'card', textureBack: 'empty'}]})();
+  PS.Main.phMkCard({x: 10, y: 10, pack: [PS.Main.newCard]})();
 
   // Popup Menu
   popupGroup = game.add.group();
@@ -106,7 +106,7 @@ function create() {
 
   // Key - A
   var keyA = game.input.keyboard.addKey(Phaser.Keyboard.A);
-  keyA.onDown.add(PS.Main.phMkCard({x: 100, y: 100, pack: [{texture: 'card', textureBack: 'empty'}]}), this);
+  keyA.onDown.add(PS.Main.phMkCard({x: 100, y: 100, pack: [PS.Main.newCard]}), this);
 
   // Key - G
   var keyG = game.input.keyboard.addKey(Phaser.Keyboard.G);
@@ -149,6 +149,7 @@ function cardInputUp(sprite, pointer) {
   } else if (dragTrigger.right) {
     // TODO: only right-click if mouse bounds are still within card bounds?
     console.log("right click!");
+    eventBuffer.push(new PS.Main.Flip(sprite.pack.gid));
   }
 
   dragTrigger = { status: "none" };

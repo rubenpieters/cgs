@@ -128,3 +128,19 @@ exports.phKill=function(o) {
     o.kill();
   };
 };
+
+exports.phLoadTexture=function(o) {
+  return function(texture) {
+    return function(frame) {
+      return function (stopAnimation) {
+        return function() {
+          console.log("t " + texture + ", f " + frame + ", sa: " + stopAnimation);
+          o.loadTexture(texture, frame, stopAnimation);
+          // need to reset height/width, otherwise it takes texture dimensions
+          o.height = cardH;
+          o.width = cardW;
+        };
+      };
+    };
+  };
+};

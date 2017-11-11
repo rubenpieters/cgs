@@ -4,7 +4,7 @@ import Prelude
 
 import Data.Maybe
 import Data.Tuple
-import Data.Array (toUnfoldable, fromFoldable)
+import Data.Array (toUnfoldable, fromFoldable, uncons, cons)
 import Data.List hiding (null, length)
 import Data.Map as M
 import Data.Foldable
@@ -58,6 +58,7 @@ foreign import setTint :: PhCard -> Int -> Eff (ph :: PHASER) Unit
 foreign import updateCardInfo :: ∀ e. PhCard -> { | e } -> Eff (ph :: PHASER) Unit
 
 foreign import phKill :: PhCard -> Eff (ph :: PHASER) Unit
+foreign import phLoadTexture :: PhCard -> String -> Int -> Boolean -> Eff (ph :: PHASER) Unit
 
 updateCardSelectMenu :: Eff (ph :: PHASER) Unit
 updateCardSelectMenu = do
@@ -100,7 +101,13 @@ type Pack =
 type Card =
   { texture :: String
   , textureBack :: String
+  , faceDir :: FaceDir
   }
+
+newCard :: Card
+newCard = { texture: "card", textureBack: "empty", faceDir: FaceUp }
+
+data FaceDir = FaceUp | FaceDown
 
 type PhaserProps =
   { x :: Int
@@ -109,7 +116,7 @@ type PhaserProps =
 
 type Cid = Int
 
-data GameEvent = Select Cid | Gather | Remove Cid
+data GameEvent = Select Cid | Gather | Remove Cid | Flip Cid
 
 type GameState =
   { cards :: M.Map Cid PhCard
@@ -129,6 +136,7 @@ updateGameState es = do
     update (Select cid) = selectCard cid
     update Gather = gatherCards
     update (Remove cid) = removeCard cid
+    update (Flip cid) = onCard cid flipCard
 
 updateCards :: Eff (ph :: PHASER) Unit
 updateCards = do
@@ -209,6 +217,20 @@ toggleSelectProps p | p.selected = { selected: false }
 toggleSelectProps p | not p.selected = { selected: true }
 toggleSelectedProps p = p
 -}
+
+flipCard :: PhCard -> Eff (ph :: PHASER) Unit
+flipCard c = do
+  pi <- packInfo c
+  case (uncons pi.pack) of
+        Just { head: firstCard, tail: t} -> do
+          case firstCard.faceDir of
+            FaceUp -> do
+              updateCardInfo c { pack: (cons (firstCard {faceDir=FaceDown}) t) }
+              phLoadTexture c firstCard.textureBack 0 false
+            FaceDown -> do
+              updateCardInfo c { pack: (cons (firstCard {faceDir=FaceUp}) t) }
+              phLoadTexture c firstCard.texture 0 false
+        Nothing -> pure unit
 
 onCard :: Cid
        -> (PhCard -> Eff (ph :: PHASER) Unit)
