@@ -126,9 +126,17 @@ function render() {
 
 function updateDragTrigger() {
   if (dragTrigger.status != "none" && dragTrigger.status != "dragging" && dragTrigger.left) {
-    if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
-      dragTrigger.c.pack.dragging = true;
+    if (dragTrigger.c.pack.dragMode === "drag") {
+      if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
+        dragTrigger.c.pack.dragging = true;
+        dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right };
+      }
+    } else {
+      var newCard = PS.Main.phMkCard({x: dragTrigger.c.x, y: dragTrigger.c.y, pack: [PS.Main.newCard]})();
+      gameState = PS.Main.addCard(newCard)(gameState)();
+      newCard.pack.dragging = true;
       dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right };
+      console.log("draw");
     }
   }
 }

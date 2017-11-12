@@ -28,6 +28,7 @@ exports.phMkCard=function(o) {
       selected: false,
       dragging: false,
       overlapped: false,
+      dragMode: "drag"
     };
 
     globalId++;
@@ -83,7 +84,21 @@ exports.showCardSelectMenu=function(card) {
   return function() {
     cardDragProp.visible = true;
     cardDragPropText.visible = true;
-    //  cardDragProp.events.onInputDown.add(toggleCardDrag(card));
+    cardDragPropText.setText("dragMode: " + card.pack.dragMode);
+    cardDragProp.events.onInputDown.add(exports.toggleCardDrag(card));
+  };
+};
+
+exports.toggleCardDrag=function(card) {
+  return function() {
+    if (card.pack.dragMode === "drag") {
+      card.pack.dragMode = "draw";
+    } else if (card.pack.dragMode === "draw") {
+      card.pack.dragMode = "drag";
+    } else {
+      throw "unknown Drag Mode!";
+    }
+    cardDragPropText.setText("dragMode: " + card.pack.dragMode);
   };
 };
 
