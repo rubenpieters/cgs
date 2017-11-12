@@ -126,17 +126,17 @@ function render() {
 
 function updateDragTrigger() {
   if (dragTrigger.status != "none" && dragTrigger.status != "dragging" && dragTrigger.left) {
-    if (dragTrigger.c.pack.dragMode === "drag") {
-      if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
+    if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
+      if (dragTrigger.c.pack.dragMode === "drag") {
         dragTrigger.c.pack.dragging = true;
-        dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right };
+        dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: dragTrigger.c };
+      } else {
+        var newCard = PS.Main.phMkCard({x: dragTrigger.c.x, y: dragTrigger.c.y, pack: [PS.Main.newCard]})();
+        gameState = PS.Main.addCard(newCard)(gameState)();
+        newCard.pack.dragging = true;
+        dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: newCard };
+        console.log("draw");
       }
-    } else {
-      var newCard = PS.Main.phMkCard({x: dragTrigger.c.x, y: dragTrigger.c.y, pack: [PS.Main.newCard]})();
-      gameState = PS.Main.addCard(newCard)(gameState)();
-      newCard.pack.dragging = true;
-      dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right };
-      console.log("draw");
     }
   }
 }
@@ -152,13 +152,19 @@ function cardInputDown(sprite, pointer) {
 
 function cardInputUp(sprite, pointer) {
   console.log("cardInputUp, " + sprite.pack.gid);
-  if (dragTrigger.left) {
-    eventBuffer.push(new PS.Main.Select(sprite.pack.gid));
-  } else if (dragTrigger.right) {
-    // TODO: only right-click if mouse bounds are still within card bounds?
-    console.log("right click!");
-    eventBuffer.push(new PS.Main.Flip(sprite.pack.gid));
+  if (typeof dragTrigger.c != 'undefined' && dragTrigger.c.pack.gid === sprite.pack.gid) {
+    if (dragTrigger.left) {
+      eventBuffer.push(new PS.Main.Select(sprite.pack.gid));
+    } else if (dragTrigger.right) {
+      // TODO: only right-click if mouse bounds are still within card bounds?
+      console.log("right click!");
+      eventBuffer.push(new PS.Main.Flip(sprite.pack.gid));
+    }
+  } else {
+    // this branch occurs when drawing from a pack and then the newly dragged card is released
+    eventBuffer.push(new PS.Main.Select(dragTrigger.c.pack.gid));
   }
+
 
   dragTrigger = { status: "none" };
 }
