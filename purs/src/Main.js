@@ -126,6 +126,7 @@ exports.phKill=function(o) {
   return function() {
     o.pack.packText.kill();
     o.kill();
+    gameState = PS.Main.removeCardGS(o)(gameState)();
   };
 };
 

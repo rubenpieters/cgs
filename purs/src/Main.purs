@@ -254,6 +254,12 @@ addCard c gs = do
   pi <- packInfo c
   pure gs { cards = M.insert pi.gid c gs.cards }
 
+-- TODO: keep track of killed cards, so they can be revived
+removeCardGS :: PhCard -> GameState -> Eff (ph :: PHASER) GameState
+removeCardGS c gs = do
+  pi <- packInfo c
+  pure gs { cards = M.delete pi.gid gs.cards }
+
 averagePos :: ∀ p f. Foldable f
            => Functor f
            => f {x :: Int, y :: Int | p}
