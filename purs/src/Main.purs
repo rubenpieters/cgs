@@ -165,8 +165,7 @@ clearOverlaps = do
     clearOverlap :: PhCard -> Eff (ph :: PHASER) Unit
     clearOverlap c = do
       updateCardInfo c { overlapped: false }
-      -- TODO: correctly set back to original tint
-      setTint c 0xffffff
+      setColor c
 
 findFirstOverlapCard :: PhCard -> Eff (ph :: PHASER) (Maybe PhCard)
 findFirstOverlapCard c = do
@@ -199,16 +198,20 @@ selectAction c p | p.dragging = do
   updateCardInfo c { dragging: false}
 selectAction c p | p.selected = do
   updateCardInfo c {selected: false}
-  setTint c 0xffffff
+  setColor c
 selectAction c p | not (p.selected) = do
   updateCardInfo c {selected: true}
-  setTint c 0x00ff00
+  setColor c
 selectAction c p = pure unit
 
+setColor :: PhCard -> Eff (ph :: PHASER) Unit
+setColor c = do
+  pi <- packInfo c
+  setTint c (packTint pi)
 
---cardTint :: PhCard -> Color
---cardTint c | isSelected c = rgb 0 255 0
---cardTint c = rgb 0 0 0
+packTint :: Pack -> Int
+packTint p | p.selected = 0x00ff00
+packTint p = 0xffffff
 
 {-
 toggleSelectProps :: Pack -> {dragging :: Boolean, selected :: Boolean, tint :: String}

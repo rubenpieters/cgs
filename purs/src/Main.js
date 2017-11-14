@@ -54,16 +54,6 @@ exports.toggleSelected=function(card) {
   };
 };
 
-exports.updateCardTint=function(card) {
-  return function() {
-    if (card.pack.selected) {
-      card.tint = 0x00ff00;
-    } else {
-      card.tint = 0xffffff;
-    }
-  };
-};
-
 exports.updateCardInfo=function(card) {
   return function(newInfo) {
     return function() {
