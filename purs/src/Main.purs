@@ -148,13 +148,14 @@ updateCard c = do
   d <- isDragging c
   if d
      then do
+            clearOverlaps
             updateDraggedCard c
             mOverlap <- findFirstOverlapCard c
             case mOverlap of
               Just overlap -> do
                 updateCardInfo overlap { overlapped: true }
                 setTint overlap 0xff0000
-              Nothing -> clearOverlaps
+              Nothing -> pure unit
      else pure unit
 
 clearOverlaps :: Eff (ph :: PHASER) Unit
