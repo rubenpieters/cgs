@@ -150,3 +150,11 @@ exports.phLoadTexture=function(o) {
     };
   };
 };
+
+exports.updatePackText=function(c) {
+  return function(text) {
+    return function() {
+      c.pack.packText.setText(text);
+    };
+  };
+};

@@ -12,6 +12,8 @@ import Data.Traversable
 
 import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
+import Control.Monad.Eff.Exception
+import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
 
 import Color
 
@@ -56,9 +58,11 @@ foreign import updateDraggedCard :: PhCard -> Eff (ph :: PHASER) Unit
 foreign import setTint :: PhCard -> Int -> Eff (ph :: PHASER) Unit
 --foreign import setCardInfo :: PhCard -> CardInfo -> Eff (ph :: PHASER) Unit
 foreign import updateCardInfo :: ∀ e. PhCard -> { | e } -> Eff (ph :: PHASER) Unit
+foreign import updatePackText :: PhCard -> String -> Eff (ph :: PHASER) Unit
 
 foreign import phKill :: PhCard -> Eff (ph :: PHASER) Unit
 foreign import phLoadTexture :: PhCard -> String -> Int -> Boolean -> Eff (ph :: PHASER) Unit
+
 
 updateCardSelectMenu :: Eff (ph :: PHASER) Unit
 updateCardSelectMenu = do
@@ -296,3 +300,15 @@ listToArray = fromFoldable
 
 removeCard :: Cid -> Eff (ph :: PHASER) Unit
 removeCard cid = onCard cid phKill
+
+drawFromPack :: {x :: Int, y :: Int} -> PhCard -> Eff (ph :: PHASER) PhCard
+drawFromPack {x: x, y: y} c = do
+  pi <- packInfo c
+  case (uncons pi.pack) of
+    Just { head: firstCard, tail: t} -> do
+      updateCardInfo c { pack: t }
+      updatePackText c (show $ (length t :: Int))
+      newPack <- phMkCard {x: x, y:y, pack: [firstCard]}
+      updateCardInfo newPack { dragging: true }
+      pure newPack
+    Nothing -> unsafeThrowException (error "drawing from pack of size 1")

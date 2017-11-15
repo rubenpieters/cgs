@@ -131,9 +131,7 @@ function updateDragTrigger() {
         dragTrigger.c.pack.dragging = true;
         dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: dragTrigger.c };
       } else {
-        var newCard = PS.Main.phMkCard({x: dragTrigger.c.x, y: dragTrigger.c.y, pack: [PS.Main.newCard]})();
-        gameState = PS.Main.addCard(newCard)(gameState)();
-        newCard.pack.dragging = true;
+        var newCard = PS.Main.drawFromPack({x: dragTrigger.c.x, y: dragTrigger.c.y})(dragTrigger.c)();
         dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: newCard };
         console.log("draw");
       }
