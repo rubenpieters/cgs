@@ -118,6 +118,24 @@ exports.updateDraggedCard=function(card) {
     card.y = newY;
     card.pack.packText.x = newX + 3;
     card.pack.packText.y = newY + 3;
+    if (connected) {
+      socket.emit("move gid", { gid: card.pack.gid, x: card.x, y: card.y });
+    };
+  };
+};
+
+exports.moveCard=function(inputX) {
+  return function(inputY) {
+    return function(card) {
+      return function() {
+        var newX = PS.Main.clamp(inputX)({lBound: 0, uBound: playRegionX - cardW});
+        var newY = PS.Main.clamp(inputY)({lBound: 0, uBound: playRegionY - cardH});
+        card.x = newX;
+        card.y = newY;
+        card.pack.packText.x = newX + 3;
+        card.pack.packText.y = newY + 3;
+      };
+    };
   };
 };
 

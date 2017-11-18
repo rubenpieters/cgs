@@ -25,6 +25,7 @@ function setEventHandlers() {
   socket.on("disconnect", onSocketDisconnected);
   socket.on("new player", onNewPlayer);
   socket.on("remove player", onRemovePlayer);
+  socket.on("move gid", onMoveGid);
 };
 
 function onSocketConnected() {
@@ -47,6 +48,11 @@ function onNewPlayer(data) {
 
 function onRemovePlayer(data) {
   console.log("player disconnect: " + JSON.stringify(data));
+};
+
+function onMoveGid(data) {
+  console.log("mov gid: " + JSON.stringify(data));
+  PS.Main.onCard(data.gid)(PS.Main.moveCard(data.x)(data.y))();
 };
 
 var gameH = 600;

@@ -22,7 +22,7 @@ function onSocketConnection(client) {
   util.log("New player has connected: "+client.id);
   client.on("disconnect", onClientDisconnect);
   client.on("new player", onNewPlayer);
-  client.on("move player", onMovePlayer);
+  client.on("move gid", onMoveGid);
 };
 
 function onClientDisconnect() {
@@ -58,8 +58,10 @@ function onNewPlayer(data) {
   players.push({ playerId: newPlayerId });
 };
 
-function onMovePlayer(data) {
+function onMoveGid(data) {
+  util.log("player " + this.id + " moving gid " + JSON.stringify(data));
 
+  this.broadcast.emit("move gid", data);
 };
 
 function playerById(id) {

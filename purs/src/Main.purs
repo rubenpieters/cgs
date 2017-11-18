@@ -55,6 +55,7 @@ foreign import hideCardSelectMenu :: Eff (ph :: PHASER) Unit
 foreign import checkOverlap :: PhCard -> PhCard -> Boolean
 foreign import gameState :: Eff (ph :: PHASER) GameState
 foreign import updateDraggedCard :: PhCard -> Eff (ph :: PHASER) Unit
+foreign import moveCard :: Int -> Int -> PhCard -> Eff (ph :: PHASER) Unit
 foreign import setTint :: PhCard -> Int -> Eff (ph :: PHASER) Unit
 --foreign import setCardInfo :: PhCard -> CardInfo -> Eff (ph :: PHASER) Unit
 foreign import updateCardInfo :: ∀ e. PhCard -> { | e } -> Eff (ph :: PHASER) Unit
