@@ -1,3 +1,54 @@
+var connected = false;
+var socket;
+
+function connectToServer() {
+  if (! connected) {
+    socket = io.connect('http://localhost:8000');
+
+    setEventHandlers();
+    connected = true;
+  } else {
+    console.log("already connected!");
+  }
+}
+
+function disconnectFromServer() {
+  if (connected) {
+    socket.disconnect();
+  } else {
+    console.log("already disconnected!");
+  }
+}
+
+function setEventHandlers() {
+	socket.on("connect", onSocketConnected);
+  socket.on("disconnect", onSocketDisconnected);
+  socket.on("new player", onNewPlayer);
+  socket.on("remove player", onRemovePlayer);
+};
+
+function onSocketConnected() {
+	console.log("Connected to socket server");
+
+	// Send local player data to the game server
+	socket.emit("new player", {});
+};
+
+function onSocketDisconnected() {
+  console.log("Disconnected from socket server");
+  socket = undefined;
+
+  connected = false;
+};
+
+function onNewPlayer(data) {
+  console.log("new player connected: " + JSON.stringify(data));
+};
+
+function onRemovePlayer(data) {
+  console.log("player disconnect: " + JSON.stringify(data));
+};
+
 var gameH = 600;
 var gameW = 800;
 
@@ -104,13 +155,21 @@ function create() {
   overlapDropMenu.visible = false;
   popupGroup.add(overlapDropMenu);
 
-  // Key - A
+  // Key - A - add card
   var keyA = game.input.keyboard.addKey(Phaser.Keyboard.A);
   keyA.onDown.add(PS.Main.phMkCard({x: 100, y: 100, pack: [PS.Main.newCard]}), this);
 
-  // Key - G
+  // Key - G - gather
   var keyG = game.input.keyboard.addKey(Phaser.Keyboard.G);
   keyG.onDown.add(function () { eventBuffer.push(new PS.Main.Gather()); });
+
+  // Key - J - connect to server
+  var keyJ = game.input.keyboard.addKey(Phaser.Keyboard.J);
+  keyJ.onDown.add(connectToServer);
+
+  // Key - K - disconnect from server
+  var keyK = game.input.keyboard.addKey(Phaser.Keyboard.K);
+  keyK.onDown.add(disconnectFromServer);
 }
 
 function update() {
