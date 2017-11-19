@@ -176,3 +176,19 @@ exports.updatePackText=function(c) {
     };
   };
 };
+
+// server interacting code
+
+exports.getSocket=function() {
+  return socket;
+};
+
+exports.unsafeEmit=function(socket) {
+  return function(msgType) {
+    return function(msgData) {
+      return function() {
+        socket.emit(msgType, msgData);
+      };
+    };
+  };
+};

@@ -26,6 +26,7 @@ function setEventHandlers() {
   socket.on("new player", onNewPlayer);
   socket.on("remove player", onRemovePlayer);
   socket.on("move gid", onMoveGid);
+  socket.on("confirm update", onConfirmUpdate);
 };
 
 function onSocketConnected() {
@@ -53,6 +54,16 @@ function onRemovePlayer(data) {
 function onMoveGid(data) {
   console.log("mov gid: " + JSON.stringify(data));
   PS.Main.onCard(data.gid)(PS.Main.moveCard(data.x)(data.y))();
+};
+
+function onConfirmUpdate(data) {
+  console.log("received game update confirmation");
+  console.log("events " + JSON.stringify(data));
+
+  //console.log(data.events[0] instanceof PS.Main.Select);
+  var decodedEvents = PS.Main.unsafeDecodeGEA(data.events)();
+
+  PS.Main.updateGameState(decodedEvents)();
 };
 
 var gameH = 600;
@@ -179,8 +190,19 @@ function create() {
 }
 
 function update() {
-  PS.Main.updateGameState(eventBuffer)();
-  eventBuffer = [];
+  if (eventBuffer.length > 0) {
+    if (!connected) {
+      PS.Main.updateGameState(eventBuffer)();
+      eventBuffer = [];
+    } else {
+      console.log("test: " + PS.Main.showGameEvent(eventBuffer[0]));
+      PS.Main.emit(socket)(new PS.Main.GameStateUpdate({ events : PS.Main.encodeGEA(eventBuffer) }))();
+      // TODO: keep track of buffer so we can resend if server lost these updates
+      eventBuffer = [];
+    }
+  }
+
+  PS.Main.updateCards();
 
   updateDragTrigger();
 }

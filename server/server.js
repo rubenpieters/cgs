@@ -1,5 +1,6 @@
 var util = require("util"),
     io = require("socket.io");
+var PS = require("./purs.js");
 
 var socket,
     players;
@@ -23,6 +24,7 @@ function onSocketConnection(client) {
   client.on("disconnect", onClientDisconnect);
   client.on("new player", onNewPlayer);
   client.on("move gid", onMoveGid);
+  client.on("gamestate update", onGameStateUpdate);
 };
 
 function onClientDisconnect() {
@@ -62,6 +64,13 @@ function onMoveGid(data) {
   util.log("player " + this.id + " moving gid " + JSON.stringify(data));
 
   this.broadcast.emit("move gid", data);
+};
+
+function onGameStateUpdate(data) {
+  util.log("player " + this.id + " gamestate update " + JSON.stringify(data));
+
+  // TODO: add sequencing to gamestate updates
+  this.emit("confirm update", data);
 };
 
 function playerById(id) {

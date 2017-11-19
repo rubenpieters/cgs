@@ -1,1 +1,2 @@
 pulp build --to ../phaser/js/purs.js
+pulp browserify --standalone psBundle --to ../server/purs.js

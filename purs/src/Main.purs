@@ -14,8 +14,18 @@ import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
 import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
+import Control.Monad.Except.Trans (runExceptT)
 
-import Color
+import Data.Either
+import Data.List.NonEmpty (NonEmptyList)
+import Data.Newtype (unwrap)
+import Data.Foreign
+import Data.Foreign.Class (class Encode, class Decode)
+import Data.Foreign.Generic as DFG
+import Data.Foreign.Generic (genericEncode, encodeJSON, genericDecode, decodeJSON)
+import Data.Generic.Rep as Rep
+import Data.Generic.Rep.Show (genericShow)
+
 
 main :: forall e. Eff e Unit
 main = do
@@ -122,6 +132,40 @@ type PhaserProps =
 type Cid = Int
 
 data GameEvent = Select Cid | Gather | Remove Cid | Flip Cid
+
+derive instance genericGameEvent :: Rep.Generic GameEvent _
+instance encodeGameEvent :: Encode GameEvent
+  where encode = genericEncode $ DFG.defaultOptions
+instance decodeGameEvent :: Decode GameEvent
+  where decode = genericDecode $ DFG.defaultOptions
+
+showGameEvent :: GameEvent -> String
+showGameEvent = genericShow
+
+encodeGE :: GameEvent -> String
+encodeGE = encodeJSON
+
+decodeEither :: ∀ a. Decode a => String -> Either (NonEmptyList ForeignError) a
+decodeEither s = unwrap $ runExceptT $ decodeJSON s
+
+unsafeDecode :: ∀ e a. Decode a => String -> Eff (console :: CONSOLE | e) a
+unsafeDecode s = do
+  case (decodeEither s) of
+    (Left errList) -> unsafeThrowException (error "error decoding GameEvent")
+    (Right value) -> pure value
+
+
+decodeGE :: String -> Either (NonEmptyList ForeignError) GameEvent
+decodeGE = decodeEither
+
+unsafeDecodeGE :: ∀ e. String -> Eff (console :: CONSOLE | e) GameEvent
+unsafeDecodeGE = unsafeDecode
+
+encodeGEA :: Array GameEvent -> String
+encodeGEA = encodeJSON
+
+unsafeDecodeGEA :: ∀ e. String -> Eff (console :: CONSOLE | e) (Array GameEvent)
+unsafeDecodeGEA = unsafeDecode
 
 type GameState =
   { cards :: M.Map Cid PhCard
@@ -313,3 +357,33 @@ drawFromPack {x: x, y: y} c = do
       updateCardInfo newPack { dragging: true }
       pure newPack
     Nothing -> unsafeThrowException (error "drawing from pack of size 1")
+
+
+-- server interacting code, move to new module (client/server) ?
+
+foreign import data NETWORK :: Effect
+foreign import data Socket :: Type
+
+foreign import getSocket :: ∀ e. Eff (network :: NETWORK | e) Socket
+foreign import unsafeEmit :: ∀ e p. Socket -> String -> { | p } -> Eff (network :: NETWORK | e) Unit
+
+data NetworkMsg
+  = NewPlayer {}
+  | RemovePlayer {}
+  | MoveGid { gid :: Int, x :: Int, y :: Int}
+  {-
+  clients send this message to notify the server that they want to update the shared gamestate
+  -}
+  | GameStateUpdate { events :: Array GameEvent}
+
+networkMsgString :: NetworkMsg -> String
+networkMsgString (NewPlayer _) = "new player"
+networkMsgString (RemovePlayer _) = "remove player"
+networkMsgString (MoveGid _) = "move gid"
+networkMsgString (GameStateUpdate _) = "gamestate update"
+
+emit :: ∀ e. Socket -> NetworkMsg -> Eff (network :: NETWORK | e) Unit
+emit socket msg@(NewPlayer d) = unsafeEmit socket (networkMsgString msg) d
+emit socket msg@(RemovePlayer d) = unsafeEmit socket (networkMsgString msg) d
+emit socket msg@(MoveGid d) = unsafeEmit socket (networkMsgString msg) d
+emit socket msg@(GameStateUpdate d) = unsafeEmit socket (networkMsgString msg) d
