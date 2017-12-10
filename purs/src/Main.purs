@@ -1,4 +1,6 @@
-module Main where
+module Main (module WS) where
+
+import WS
 
 import Prelude
 

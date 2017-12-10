@@ -1,12 +1,16 @@
 var connected = false;
+//var socket;
+//const WebSocket = require('uws');
+
 var socket;
 
 function connectToServer() {
   if (! connected) {
-    socket = io.connect('http://localhost:8000');
-
-    setEventHandlers();
-    connected = true;
+    socket = new WebSocket('ws://localhost:8080');
+    socket.onopen = function() {
+      socket.onmessage = onMessage;
+      connected = true;
+    };
   } else {
     console.log("already connected!");
   }
@@ -14,27 +18,51 @@ function connectToServer() {
 
 function disconnectFromServer() {
   if (connected) {
-    socket.disconnect();
+    console.log("disconnecting...");
+    socket.close();
+    // TODO: should this be called after an ack from server disconnect?
+    onSocketDisconnected();
   } else {
     console.log("already disconnected!");
   }
 }
 
-function setEventHandlers() {
-	socket.on("connect", onSocketConnected);
-  socket.on("disconnect", onSocketDisconnected);
-  socket.on("new player", onNewPlayer);
-  socket.on("remove player", onRemovePlayer);
-  socket.on("move gid", onMoveGid);
-  socket.on("confirm update", onConfirmUpdate);
+function onMessage(message) {
+  console.log("received message: " + message.data);
+
+  var msgPayload = JSON.parse(message.data);
+  var msgType = msgPayload.type;
+  var msgData = msgPayload.data;
+  switch (msgType) {
+  case "player id":
+    console.log("assigned player id: " + msgData.id);
+    break;
+  case "new player":
+    onNewPlayer(msgData);
+    break;
+  case "remove player":
+    onRemovePlayer(msgData);
+    break;
+  case "move gid":
+    onMoveGid(msgData);
+    break;
+  case "confirm update":
+    onConfirmUpdate(msgData);
+    break;
+  default:
+    console.log("unknown message type " + msgType);
+    break;
+  }
 };
 
+/*
 function onSocketConnected() {
 	console.log("Connected to socket server");
 
 	// Send local player data to the game server
 	socket.emit("new player", {});
 };
+*/
 
 function onSocketDisconnected() {
   console.log("Disconnected from socket server");
@@ -69,10 +97,19 @@ function onConfirmUpdate(data) {
 var gameH = 600;
 var gameW = 800;
 
-var game = new Phaser.Game(
-  gameW, gameH, Phaser.AUTO, '',
-  { preload: preload, create: create, update: update, render: render }
-);
+var config = {
+  width: 800,
+  height: 600,
+  renderer: Phaser.AUTO,
+  state: {
+    preload: preload,
+    create: create,
+    update: update,
+    render: render,
+  }
+};
+
+var game = new Phaser.Game(config);
 
 var botMenH = 100;
 var rgtMenH = 200;

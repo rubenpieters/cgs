@@ -119,7 +119,7 @@ exports.updateDraggedCard=function(card) {
     card.pack.packText.x = newX + 3;
     card.pack.packText.y = newY + 3;
     if (connected) {
-      socket.emit("move gid", { gid: card.pack.gid, x: card.x, y: card.y });
+      socket.send(JSON.stringify({type: "move gid", data: { gid: card.pack.gid, x: card.x, y: card.y }}));
     };
   };
 };
@@ -187,7 +187,7 @@ exports.unsafeEmit=function(socket) {
   return function(msgType) {
     return function(msgData) {
       return function() {
-        socket.emit(msgType, msgData);
+        socket.send(JSON.stringify({type: msgType, data: msgData}));
       };
     };
   };
