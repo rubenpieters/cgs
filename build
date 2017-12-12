@@ -1,2 +1,1 @@
-pulp build -O -m ClientMain --to ../phaser/js/purs.js
-pulp browserify --standalone psBundle --to ../server/purs.js
+npm run-script build
