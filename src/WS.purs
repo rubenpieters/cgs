@@ -107,6 +107,7 @@ onSocketConnection :: ∀ e.
                       (Client ServerMessage ClientMessage) ->
                       Eff (console :: CONSOLE, ws :: WS | e) Unit
 onSocketConnection server client = do
+  -- TODO: generate unique id
   let clientId = 1
   log ("New player has connected: " <> show clientId)
   -- set event handlers
@@ -119,6 +120,7 @@ onSocketConnection server client = do
 
   players <- getPlayers
   -- send all players to new player
+  -- TODO: batch into one message?
   for_ players (\player -> sendMessage client (NewPlayer { id : player.id }))
   -- update player list
   setPlayers ({id : clientId} : players)

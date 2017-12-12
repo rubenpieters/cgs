@@ -1,1 +1,11 @@
-phaser/js/purs.js
+/bower_components/
+/node_modules/
+/.pulp-cache/
+/output/
+/generated-docs/
+/.psc*
+/.purs*
+/.psa*
+
+
+dist/js/purs.js
