@@ -34,7 +34,7 @@ exports.phMkCard=function(o) {
     globalId++;
     newCardMarker.x += 5;
     newCardMarker.y += 7;
-    gameState = PS.Main.addCard(card)(gameState)();
+    gameState = PS.ClientMain.addCard(card)(gameState)();
     cardGroup.add(card);
 
     return card;
@@ -50,7 +50,7 @@ exports.packInfo=function(card) {
 exports.toggleSelected=function(card) {
   return function() {
     card.pack.selected = ! card.pack.selected;
-    PS.Main.updateCardTint(card)();
+    PS.ClientMain.updateCardTint(card)();
   };
 };
 
@@ -112,24 +112,28 @@ exports.gameState=function() {
 
 exports.updateDraggedCard=function(card) {
   return function() {
-    var newX = PS.Main.clamp(game.input.x - (cardW / 2))({lBound: 0, uBound: playRegionX - cardW});
-    var newY = PS.Main.clamp(game.input.y - (cardH / 2))({lBound: 0, uBound: playRegionY - cardH});
+    var newX = PS.ClientMain.clamp(game.input.x - (cardW / 2))({lBound: 0, uBound: playRegionX - cardW});
+    var newY = PS.ClientMain.clamp(game.input.y - (cardH / 2))({lBound: 0, uBound: playRegionY - cardH});
     card.x = newX;
     card.y = newY;
     card.pack.packText.x = newX + 3;
     card.pack.packText.y = newY + 3;
-    if (connected) {
+    /*if (connected) {
       socket.send(JSON.stringify({type: "move gid", data: { gid: card.pack.gid, x: card.x, y: card.y }}));
-    };
+    };*/
   };
+};
+
+exports.isConnected=function() {
+  return connected;
 };
 
 exports.moveCard=function(inputX) {
   return function(inputY) {
     return function(card) {
       return function() {
-        var newX = PS.Main.clamp(inputX)({lBound: 0, uBound: playRegionX - cardW});
-        var newY = PS.Main.clamp(inputY)({lBound: 0, uBound: playRegionY - cardH});
+        var newX = PS.ClientMain.clamp(inputX)({lBound: 0, uBound: playRegionX - cardW});
+        var newY = PS.ClientMain.clamp(inputY)({lBound: 0, uBound: playRegionY - cardH});
         card.x = newX;
         card.y = newY;
         card.pack.packText.x = newX + 3;
@@ -149,7 +153,7 @@ exports.phKill=function(o) {
   return function() {
     o.pack.packText.kill();
     o.kill();
-    gameState = PS.Main.removeCardGS(o)(gameState)();
+    gameState = PS.ClientMain.removeCardGS(o)(gameState)();
   };
 };
 
@@ -184,11 +188,9 @@ exports.getSocket=function() {
 };
 
 exports.unsafeEmit=function(socket) {
-  return function(msgType) {
-    return function(msgData) {
-      return function() {
-        socket.send(JSON.stringify({type: msgType, data: msgData}));
-      };
+  return function(data) {
+    return function() {
+      socket.send(data);
     };
   };
 };

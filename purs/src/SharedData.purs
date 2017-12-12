@@ -137,15 +137,32 @@ flipCard c = c { faceDir = oppositeDir c.faceDir }
 moveTo :: Position -> Pack -> Pack
 moveTo l p = p { position = l }
 
+-- messages server -> client
 data ServerMessage
   = PlayerId { id :: Int }
   | NewPlayer { id :: Int }
+  | SvMoveGid { id :: Int, x :: Int, y :: Int }
 
 derive instance genericServerMessage :: Rep.Generic ServerMessage _
 instance encodeServerMessage :: Encode ServerMessage
   where encode = genericEncode $ DFG.defaultOptions
 instance decodeServerMessage :: Decode ServerMessage
   where decode = genericDecode $ DFG.defaultOptions
+instance showServerMessage :: Show ServerMessage
+  where show = genericShow
+
+-- messages client -> server
+data ClientMessage
+  = ClMoveGid { id :: Int, x :: Int, y :: Int }
+--  | ClGameStateUpdate { events :: }
+
+derive instance genericClientMessage :: Rep.Generic ClientMessage _
+instance encodeClientMessage :: Encode ClientMessage
+  where encode = genericEncode $ DFG.defaultOptions
+instance decodeClientMessage :: Decode ClientMessage
+  where decode = genericDecode $ DFG.defaultOptions
+instance showClientMessage :: Show ClientMessage
+  where show = genericShow
 
 -- decode utility (move somewhere else?)
 
@@ -159,3 +176,5 @@ unsafeDecodeJSON s = do
     -- TODO: use a logging effect?
     (Left errList) -> unsafeThrowException (error "error decoding")
     (Right value) -> pure value
+
+

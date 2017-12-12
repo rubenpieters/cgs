@@ -5,6 +5,7 @@ import SharedData
 import Prelude
 
 import Data.Array
+import Data.Either
 import Data.Foreign.Class (class Encode, class Decode)
 import Data.Foreign.EasyFFI
 import Data.Foreign.Generic (encodeJSON, decodeJSON)
@@ -24,7 +25,6 @@ type Player =
 
 startServer = do
   log "Server started"
---  let (players :: Array Player) = []
 -- TODO: manage players with IORef or similar?
   players <- initPlayers
   let gs = emptyGameState
@@ -35,33 +35,39 @@ startServer = do
 
 foreign import data WS :: Effect
 
--- TODO: add phantom tags for which message they receive send?
-foreign import data Server :: Type -> Type
-foreign import data Client :: Type -> Type
+-- first `Type`: received message types
+-- second `Type`: sent message types
+-- a server receives cmsg :: client messages
+-- a server sends smsg :: server messages
+foreign import data Server :: Type -> Type -> Type
+-- a server receives smsg :: server messages
+-- a server sends cmsg :: client messages
+foreign import data Client :: Type -> Type -> Type
 
-mkServer :: ∀ e msg. { port :: Int } -> Eff (ws :: WS | e) (Server msg)
-mkServer = unsafeForeignFunction ["config", ""] "new WebSocket.Server(config);"
+foreign import mkServer :: ∀ e cmsg smsg. { port :: Int } -> Eff (ws :: WS | e) (Server cmsg smsg)
 
-serverClients :: ∀ e msg. (Server msg) -> Eff (ws :: WS | e) (Array (Client msg))
+serverClients :: ∀ e cmsg smsg. (Server cmsg smsg) -> Eff (ws :: WS | e) (Array (Client smsg cmsg))
 serverClients = unsafeForeignFunction ["server", ""] "server.clients"
 
-sendMessage :: ∀ e msg. (Encode msg) =>
-                   (Client msg) -> msg -> Eff (ws :: WS | e) Unit
-sendMessage client msg = unsafeSendMessage client (encodeJSON msg)
+sendMessage :: ∀ e cmsg smsg. (Encode smsg) =>
+               (Client smsg cmsg) -> smsg -> Eff (ws :: WS, console :: CONSOLE | e) Unit
+sendMessage client msg = do
+  let test = unsafeForeignFunction ["x", ""] "typeof x"
+  testVal <- test client
+  log ("test_sendMessage: " <> testVal)
+  unsafeSendMessage client (encodeJSON msg)
 
-unsafeSendMessage :: ∀ e msg.
-               (Client msg) -> String -> Eff (ws :: WS | e) Unit
-unsafeSendMessage = unsafeForeignProcedure ["client", "data", ""] """
-  if (client.readyState === WebSocket.OPEN) {
-    client.send(data);
-  }
-  """
+foreign import unsafeSendMessage :: ∀ e cmsg smsg. (Client cmsg smsg) -> String -> Eff (ws :: WS | e) Unit
 
-broadcast :: ∀ e msg. (Encode msg) =>
-             (Server msg) -> msg -> (Client msg) -> Eff (ws :: WS | e) Unit
-broadcast server msg client = do
-  clients <- serverClients server
-  for_ clients (\c -> sendMessage c msg)
+broadcast :: ∀ e cmsg smsg. (Encode smsg) =>
+             (Server cmsg smsg) -> smsg -> (Client smsg cmsg) -> Eff (ws :: WS, console :: CONSOLE | e) Unit
+broadcast server msg exceptClient = unsafeBroadcast server (encodeJSON msg) exceptClient
+--broadcast server msg exceptClient = do
+--  clients <- serverClients server
+--  for_ clients (\c -> sendMessage c msg)
+
+foreign import unsafeBroadcast :: ∀ e cmsg smsg. (Server cmsg smsg) -> String -> (Client smsg cmsg) -> Eff (ws :: WS | e) Unit
+
 
 data SvConnection = SvConnection
 
@@ -75,7 +81,7 @@ instance svConnectionEvent :: WsEvent SvConnection where
   eventStr _ = "connection"
 
 instance clMessageEvent :: WsEvent ClMessage where
-  eventStr _ = "close"
+  eventStr _ = "message"
 
 instance clCloseEvent :: WsEvent ClClose where
   eventStr _ = "close"
@@ -84,24 +90,27 @@ instance clCloseEvent :: WsEvent ClClose where
 class WsListener o msg cb | o -> cb where
   on :: ∀ e a e'. o -> msg -> Impure cb -> Eff (ws :: WS | e') Unit
 
-instance svConnectionListener :: WsListener (Server msg) SvConnection ((Client msg) -> Unit) where
+instance svConnectionListener :: WsListener (Server cmsg smsg) SvConnection ((Client smsg cmsg) -> Unit) where
   on = unsafeOn
 
-instance clMessageListener :: WsListener (Client msg) ClMessage (String -> Unit) where
+instance clMessageListener :: WsListener (Client smsg cmsg) ClMessage (String -> Unit) where
   on = unsafeOn
 
-instance clCloseListener :: WsListener (Client msg) ClClose (Unit -> Unit) where
+instance clCloseListener :: WsListener (Client smsg cmsg) ClClose (Unit -> Unit) where
   on = unsafeOn
 
 unsafeOn :: ∀ o f e msg. (WsEvent msg) => o -> msg -> Impure f -> Eff (ws :: WS | e) Unit
 unsafeOn obj msg f = unsafeForeignProcedure ["obj", "event", "cb", ""] "obj.on(event, cb);" obj (eventStr msg) f
 
-onSocketConnection :: ∀ e. (Server ServerMessage) -> (Client ServerMessage) -> Eff (console :: CONSOLE, ws :: WS | e) Unit
+onSocketConnection :: ∀ e.
+                      (Server ClientMessage ServerMessage) ->
+                      (Client ServerMessage ClientMessage) ->
+                      Eff (console :: CONSOLE, ws :: WS | e) Unit
 onSocketConnection server client = do
   let clientId = 1
   log ("New player has connected: " <> show clientId)
   -- set event handlers
-  (client `on` ClMessage) (mkImpureFn1 (onMessage client clientId))
+  (client `on` ClMessage) (mkImpureFn1 (onMessage server client clientId))
   (client `on` ClClose) (mkImpureFn1 (\_ -> onDisconnect clientId))
   -- send id to client
   sendMessage client (PlayerId { id : clientId })
@@ -114,9 +123,25 @@ onSocketConnection server client = do
   -- update player list
   setPlayers ({id : clientId} : players)
 
-onMessage :: ∀ e. (Client ServerMessage) -> Int -> String -> Eff (console :: CONSOLE | e) Unit
-onMessage client id message = do
+onMessage :: ∀ e.
+             (Server ClientMessage ServerMessage) ->
+             (Client ServerMessage ClientMessage) ->
+             Int -> String -> Eff (console :: CONSOLE, ws :: WS | e) Unit
+onMessage server client id message = do
   log ("received message " <> message)
+  let eSvMsg = decodeJSONEither message
+  case eSvMsg of
+    Left errs -> log ("malformed message")
+    Right (clMsg :: ClientMessage) -> onClientMessage server client id clMsg
+
+onClientMessage :: ∀ e.
+                   (Server ClientMessage ServerMessage) ->
+                   (Client ServerMessage ClientMessage) ->
+                   Int -> ClientMessage -> Eff (console :: CONSOLE, ws :: WS | e) Unit
+onClientMessage server client clientId (ClMoveGid {id: playerId, x: x, y: y}) = do
+  -- check if client id == player id?
+  log ("player " <> show playerId <> " moving gid, x:" <> show x <> ", y: " <> show y)
+  broadcast server (SvMoveGid {id :playerId, x: x, y: y}) client
 
 onDisconnect :: ∀ e. Int -> Eff (console :: CONSOLE, ws :: WS | e) Unit
 onDisconnect toRemoveId = do

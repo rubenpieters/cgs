@@ -1,6 +1,4 @@
 var connected = false;
-//var socket;
-//const WebSocket = require('uws');
 
 var socket;
 
@@ -29,7 +27,10 @@ function disconnectFromServer() {
 
 function onMessage(message) {
   console.log("received message: " + message.data);
+  console.log("received message: " + JSON.stringify(message.data));
 
+  PS.ClientMain.onServerStrMessage(message.data)();
+/*
   var msgPayload = JSON.parse(message.data);
   var msgType = msgPayload.type;
   var msgData = msgPayload.data;
@@ -53,6 +54,7 @@ function onMessage(message) {
     console.log("unknown message type " + msgType);
     break;
   }
+ */
 };
 
 /*
@@ -81,17 +83,17 @@ function onRemovePlayer(data) {
 
 function onMoveGid(data) {
   console.log("mov gid: " + JSON.stringify(data));
-  PS.Main.onCard(data.gid)(PS.Main.moveCard(data.x)(data.y))();
+  PS.ClientMain.onCard(data.gid)(PS.ClientMain.moveCard(data.x)(data.y))();
 };
 
 function onConfirmUpdate(data) {
   console.log("received game update confirmation");
   console.log("events " + JSON.stringify(data));
 
-  //console.log(data.events[0] instanceof PS.Main.Select);
-  var decodedEvents = PS.Main.unsafeDecodeGEA(data.events)();
+  //console.log(data.events[0] instanceof PS.ClientMain.Select);
+  var decodedEvents = PS.ClientMain.unsafeDecodeGEA(data.events)();
 
-  PS.Main.updateGameState(decodedEvents)();
+  PS.ClientMain.updateGameState(decodedEvents)();
 };
 
 var gameH = 600;
@@ -142,7 +144,7 @@ var allCards = [];
 var draggedCards = [];
 var selectedCards = [];
 
-var gameState = PS.Main.emptyGS;
+var gameState = PS.ClientMain.emptyGS;
 var eventBuffer = [];
 
 var dragTrigger = { status: 'none' };
@@ -164,7 +166,7 @@ function create() {
   bottomMenu.width = gameW;
 
   // - bottom - create card button
-  var button = game.add.button(10, playRegionY + 10, 'empty', PS.Main.phMkCard({x: 100, y: 100, pack: [PS.Main.newCard]}), this, 2, 1, 0);
+  var button = game.add.button(10, playRegionY + 10, 'empty', PS.ClientMain.phMkCard({x: 100, y: 100, pack: [PS.ClientMain.newCard]}), this, 2, 1, 0);
   button.height = 20;
   button.width = 50;
   var style = { font: "10px Arial", fill: "#000000", align: "center" };
@@ -194,7 +196,7 @@ function create() {
 
   // Cards
   cardGroup = game.add.group();
-  PS.Main.phMkCard({x: 10, y: 10, pack: [PS.Main.newCard]})();
+  PS.ClientMain.phMkCard({x: 10, y: 10, pack: [PS.ClientMain.newCard]})();
 
   // Popup Menu
   popupGroup = game.add.group();
@@ -211,11 +213,11 @@ function create() {
 
   // Key - A - add card
   var keyA = game.input.keyboard.addKey(Phaser.Keyboard.A);
-  keyA.onDown.add(PS.Main.phMkCard({x: 100, y: 100, pack: [PS.Main.newCard]}), this);
+  keyA.onDown.add(PS.ClientMain.phMkCard({x: 100, y: 100, pack: [PS.ClientMain.newCard]}), this);
 
   // Key - G - gather
   var keyG = game.input.keyboard.addKey(Phaser.Keyboard.G);
-  keyG.onDown.add(function () { eventBuffer.push(new PS.Main.Gather()); });
+  keyG.onDown.add(function () { eventBuffer.push(new PS.ClientMain.Gather()); });
 
   // Key - J - connect to server
   var keyJ = game.input.keyboard.addKey(Phaser.Keyboard.J);
@@ -229,17 +231,17 @@ function create() {
 function update() {
   if (eventBuffer.length > 0) {
     if (!connected) {
-      PS.Main.updateGameState(eventBuffer)();
+      PS.ClientMain.updateGameState(eventBuffer)();
       eventBuffer = [];
     } else {
-      console.log("test: " + PS.Main.showGameEvent(eventBuffer[0]));
-      PS.Main.emit(socket)(new PS.Main.GameStateUpdate({ events : PS.Main.encodeGEA(eventBuffer) }))();
+      console.log("test: " + PS.ClientMain.showGameEvent(eventBuffer[0]));
+      //PS.ClientMain.emit(socket)(new PS.ClientMain.GameStateUpdate({ events : PS.ClientMain.encodeGEA(eventBuffer) }))();
       // TODO: keep track of buffer so we can resend if server lost these updates
       eventBuffer = [];
     }
   }
 
-  PS.Main.updateCards();
+  PS.ClientMain.updateCards();
 
   updateDragTrigger();
 }
@@ -255,7 +257,7 @@ function updateDragTrigger() {
         dragTrigger.c.pack.dragging = true;
         dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: dragTrigger.c };
       } else {
-        var newCard = PS.Main.drawFromPack({x: dragTrigger.c.x, y: dragTrigger.c.y})(dragTrigger.c)();
+        var newCard = PS.ClientMain.drawFromPack({x: dragTrigger.c.x, y: dragTrigger.c.y})(dragTrigger.c)();
         dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: newCard };
         console.log("draw");
       }
@@ -276,15 +278,15 @@ function cardInputUp(sprite, pointer) {
   console.log("cardInputUp, " + sprite.pack.gid);
   if (typeof dragTrigger.c != 'undefined' && dragTrigger.c.pack.gid === sprite.pack.gid) {
     if (dragTrigger.left) {
-      eventBuffer.push(new PS.Main.Select(sprite.pack.gid));
+      eventBuffer.push(new PS.ClientMain.Select(sprite.pack.gid));
     } else if (dragTrigger.right) {
       // TODO: only right-click if mouse bounds are still within card bounds?
       console.log("right click!");
-      eventBuffer.push(new PS.Main.Flip(sprite.pack.gid));
+      eventBuffer.push(new PS.ClientMain.Flip(sprite.pack.gid));
     }
   } else {
     // this branch occurs when drawing from a pack and then the newly dragged card is released
-    eventBuffer.push(new PS.Main.Select(dragTrigger.c.pack.gid));
+    eventBuffer.push(new PS.ClientMain.Select(dragTrigger.c.pack.gid));
   }
 
 
