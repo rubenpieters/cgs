@@ -11,7 +11,7 @@
   },
   "devDependencies": {},
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "pulp test",
     "build:cl": "pulp build -O -m ClientMain --to dist/js/purs.js",
     "build:sv": "pulp build -O --to index.js",
     "build": "npm run build:cl && npm run build:sv"
