@@ -134,16 +134,8 @@ type PhaserProps =
 
 type Cid = Int
 
-data GameEvent = Select Cid | Gather | Remove Cid | Flip Cid
-
-derive instance genericGameEvent :: Rep.Generic GameEvent _
-instance encodeGameEvent :: Encode GameEvent
-  where encode = genericEncode $ DFG.defaultOptions
-instance decodeGameEvent :: Decode GameEvent
-  where decode = genericDecode $ DFG.defaultOptions
-
 showGameEvent :: GameEvent -> String
-showGameEvent = genericShow
+showGameEvent = show
 
 encodeGE :: GameEvent -> String
 encodeGE = encodeJSON
@@ -381,6 +373,9 @@ foreign import unsafeEmit :: ∀ e. Socket -> String -> Eff (ph :: PHASER | e) U
 emit :: ∀ e msg. (Encode msg) => Socket -> msg -> Eff (ph :: PHASER | e) Unit
 emit socket msgStr = unsafeEmit socket (encodeJSON msgStr)
 
+sendUpdates :: ∀ e. Socket -> Array GameEvent-> Eff (ph :: PHASER | e) Unit
+sendUpdates socket events = emit socket (ClGameStateUpdate { events: events })
+
 {-
 data NetworkMsg
   = NewPlayer {}
@@ -422,5 +417,8 @@ onServerMessage (PlayerId {id: id}) = do
 onServerMessage (NewPlayer {id: id}) = do
   log ("new player connected: " <> show id)
 onServerMessage (SvMoveGid {id: id, x: x, y: y}) = do
-  log (" mov gid, id: " <> show id <> ", x: " <> show x <> ", y: " <> show y)
+  log ("mov gid, id: " <> show id <> ", x: " <> show x <> ", y: " <> show y)
   onCard id (moveCard x y)
+onServerMessage (ConfirmUpdates {events: events}) = do
+  log ("confirmed updates: " <> show events)
+  updateGameState events

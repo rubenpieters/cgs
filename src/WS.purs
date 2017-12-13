@@ -144,6 +144,9 @@ onClientMessage server client clientId (ClMoveGid {id: playerId, x: x, y: y}) = 
   -- check if client id == player id?
   log ("player " <> show playerId <> " moving gid, x:" <> show x <> ", y: " <> show y)
   broadcast server (SvMoveGid {id :playerId, x: x, y: y}) client
+onClientMessage server client clientId (ClGameStateUpdate {events: events}) = do
+  log ("events: " <> show events)
+  sendMessage client (ConfirmUpdates {events: events})
 
 onDisconnect :: ∀ e. Int -> Eff (console :: CONSOLE, ws :: WS | e) Unit
 onDisconnect toRemoveId = do

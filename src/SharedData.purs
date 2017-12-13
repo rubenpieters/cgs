@@ -1,31 +1,29 @@
 module SharedData where
 
-import Prelude
-
-import Data.Maybe
-import Data.Tuple
-import Data.Array (toUnfoldable, fromFoldable, uncons, cons)
-import Data.List hiding (null, length)
-import Data.Map as M
+import Control.Monad.Eff.Exception
+import Data.Either
 import Data.Foldable
+import Data.Foreign
+import Data.Maybe
 import Data.Traversable
+import Data.Tuple
+import Prelude
 
 import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
-import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
 import Control.Monad.Except.Trans (runExceptT)
-
-import Data.Either
-import Data.NonEmpty ((:|))
-import Data.List.NonEmpty (NonEmptyList(..), head, tail)
-import Data.Newtype (unwrap)
-import Data.Foreign
+import Data.Array (toUnfoldable, fromFoldable, uncons, cons)
 import Data.Foreign.Class (class Encode, class Decode)
-import Data.Foreign.Generic as DFG
 import Data.Foreign.Generic (genericEncode, encodeJSON, genericDecode, decodeJSON)
+import Data.Foreign.Generic as DFG
 import Data.Generic.Rep as Rep
 import Data.Generic.Rep.Show (genericShow)
+import Data.List hiding (null,length)
+import Data.List.NonEmpty (NonEmptyList(..), head, tail)
+import Data.Map as M
+import Data.Newtype (unwrap)
+import Data.NonEmpty ((:|))
 
 type Player =
   { playerId :: String
@@ -82,6 +80,7 @@ type Pack =
 -- frontCard :: Pack -> Card
 -- packSize :: Pack -> Int
 
+-- GAME STATE
 
 -- gamestate which is shared by every client
 -- needs to be obfuscated to hide asymmetric information
@@ -137,11 +136,26 @@ flipCard c = c { faceDir = oppositeDir c.faceDir }
 moveTo :: Position -> Pack -> Pack
 moveTo l p = p { position = l }
 
+-- GAME EVENT
+
+data GameEvent = Select Gid | Gather | Remove Gid | Flip Gid
+
+derive instance genericGameEvent :: Rep.Generic GameEvent _
+instance encodeGameEvent :: Encode GameEvent
+  where encode = genericEncode $ DFG.defaultOptions
+instance decodeGameEvent :: Decode GameEvent
+  where decode = genericDecode $ DFG.defaultOptions
+instance gameEventShow :: Show GameEvent
+  where show = genericShow
+
+
+
 -- messages server -> client
 data ServerMessage
   = PlayerId { id :: Int }
   | NewPlayer { id :: Int }
   | SvMoveGid { id :: Int, x :: Int, y :: Int }
+  | ConfirmUpdates { events :: Array GameEvent }
 
 derive instance genericServerMessage :: Rep.Generic ServerMessage _
 instance encodeServerMessage :: Encode ServerMessage
@@ -154,7 +168,7 @@ instance showServerMessage :: Show ServerMessage
 -- messages client -> server
 data ClientMessage
   = ClMoveGid { id :: Int, x :: Int, y :: Int }
---  | ClGameStateUpdate { events :: }
+  | ClGameStateUpdate { events :: Array GameEvent}
 
 derive instance genericClientMessage :: Rep.Generic ClientMessage _
 instance encodeClientMessage :: Encode ClientMessage
@@ -176,5 +190,3 @@ unsafeDecodeJSON s = do
     -- TODO: use a logging effect?
     (Left errList) -> unsafeThrowException (error "error decoding")
     (Right value) -> pure value
-
-

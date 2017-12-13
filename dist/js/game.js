@@ -232,13 +232,12 @@ function update() {
   if (eventBuffer.length > 0) {
     if (!connected) {
       PS.ClientMain.updateGameState(eventBuffer)();
-      eventBuffer = [];
     } else {
       console.log("test: " + PS.ClientMain.showGameEvent(eventBuffer[0]));
-      //PS.ClientMain.emit(socket)(new PS.ClientMain.GameStateUpdate({ events : PS.ClientMain.encodeGEA(eventBuffer) }))();
+      PS.ClientMain.sendUpdates(socket)(eventBuffer)();
       // TODO: keep track of buffer so we can resend if server lost these updates
-      eventBuffer = [];
     }
+    eventBuffer = [];
   }
 
   PS.ClientMain.updateCards();
@@ -247,7 +246,7 @@ function update() {
 }
 
 function render() {
-  
+
 }
 
 function updateDragTrigger() {
@@ -278,15 +277,15 @@ function cardInputUp(sprite, pointer) {
   console.log("cardInputUp, " + sprite.pack.gid);
   if (typeof dragTrigger.c != 'undefined' && dragTrigger.c.pack.gid === sprite.pack.gid) {
     if (dragTrigger.left) {
-      eventBuffer.push(new PS.ClientMain.Select(sprite.pack.gid));
+      eventBuffer.push(new PS.SharedData.Select(sprite.pack.gid));
     } else if (dragTrigger.right) {
       // TODO: only right-click if mouse bounds are still within card bounds?
       console.log("right click!");
-      eventBuffer.push(new PS.ClientMain.Flip(sprite.pack.gid));
+      eventBuffer.push(new PS.SharedData.Flip(sprite.pack.gid));
     }
   } else {
     // this branch occurs when drawing from a pack and then the newly dragged card is released
-    eventBuffer.push(new PS.ClientMain.Select(dragTrigger.c.pack.gid));
+    eventBuffer.push(new PS.SharedData.Select(dragTrigger.c.pack.gid));
   }
 
 
