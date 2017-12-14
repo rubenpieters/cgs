@@ -12,7 +12,9 @@ import Data.Int (fromString)
 import Data.List.NonEmpty (singleton)
 import Data.Map as M
 import Data.Maybe
+import Data.Monoid
 import Data.Newtype hiding (traverse)
+import Data.Semigroup
 import Data.StrMap as StrMap
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
@@ -35,7 +37,7 @@ class EncodeKey k where
   encodeKey :: k -> String
 
 instance intEncodeKey :: EncodeKey Int where
-encodeKey = show
+  encodeKey = show
 
 -- Decode/Encode EMap
 
@@ -59,3 +61,14 @@ instance emapEncode :: (EncodeKey k, Encode v) => Encode (EMap k v) where
            <<< map (\(Tuple k v) -> (Tuple (encodeKey k) (encode v)))
            <<< (M.toUnfoldable :: M.Map k v -> Array (Tuple k v))
            <<< unwrap
+
+-- reexport Map functions, but for EMap
+
+empty :: forall k v. EMap k v
+empty = wrap M.empty
+
+lookup :: forall k v. Ord k => k -> EMap k v -> Maybe v
+lookup k m = M.lookup k (unwrap m)
+
+update :: forall k v. Ord k => (v -> Maybe v) -> k -> EMap k v -> EMap k v
+update f k m = wrap $ M.alter (maybe Nothing f) k (unwrap m)

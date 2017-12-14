@@ -1,5 +1,6 @@
 module SharedData where
 
+
 import Control.Monad.Eff.Exception
 import Data.Either
 import Data.Foldable
@@ -13,17 +14,19 @@ import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
 import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
 import Control.Monad.Except.Trans (runExceptT)
-import Data.Array (toUnfoldable, fromFoldable, uncons, cons)
+import Data.Array (toUnfoldable, fromFoldable, uncons, cons, head, tail)
 import Data.Foreign.Class (class Encode, class Decode)
 import Data.Foreign.Generic (genericEncode, encodeJSON, genericDecode, decodeJSON)
 import Data.Foreign.Generic as DFG
 import Data.Generic.Rep as Rep
 import Data.Generic.Rep.Show (genericShow)
-import Data.List hiding (null,length)
-import Data.List.NonEmpty (NonEmptyList(..), head, tail)
-import Data.Map as M
+import Data.List.NonEmpty (NonEmptyList(..))
+import EMap as M
+--import Data.Map as M
 import Data.Newtype (unwrap)
 import Data.NonEmpty ((:|))
+
+import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
 
 type Player =
   { playerId :: String
@@ -38,6 +41,11 @@ type TextureLoc = String
 data FaceDir = FaceUp | FaceDown
 
 derive instance eqFaceDir :: Eq FaceDir
+derive instance genericFaceDir :: Rep.Generic FaceDir _
+instance encodeFaceDir :: Encode FaceDir
+  where encode = genericEncode $ DFG.defaultOptions
+instance decodeFaceDir :: Decode FaceDir
+  where decode = genericDecode $ DFG.defaultOptions
 
 oppositeDir :: FaceDir -> FaceDir
 oppositeDir FaceUp = FaceDown
@@ -45,7 +53,7 @@ oppositeDir FaceDown = FaceUp
 
 -- represent a singular card
 -- is always part of a pack
-type Card =
+data Card = Card
   -- texture for card front
   { textureFront :: TextureLoc
   -- texture for card back
@@ -54,8 +62,14 @@ type Card =
   , faceDir :: FaceDir
   }
 
+derive instance genericCard :: Rep.Generic Card _
+instance encodeCard :: Encode Card
+  where encode = genericEncode $ DFG.defaultOptions
+instance decodeCard :: Decode Card
+  where decode = genericDecode $ DFG.defaultOptions
+
 cardTexture :: Card -> TextureLoc
-cardTexture c = case c.faceDir of
+cardTexture (Card c) = case c.faceDir of
   FaceUp -> c.textureFront
   FaceDown -> c.textureBack
 --cardTexture c | c.faceDir == FaceUp = c.textureFront
@@ -65,17 +79,28 @@ cardTexture c = case c.faceDir of
 type Gid = Int
 
 -- pack's board position
-type Position =
+data Position = Pos
   { x :: Int
   , y :: Int
   }
 
--- a pack is 1 or more cards
-type Pack =
+derive instance genericPosition :: Rep.Generic Position _
+instance encodePosition :: Encode Position
+  where encode = genericEncode $ DFG.defaultOptions
+instance decodePosition :: Decode Position
+  where decode = genericDecode $ DFG.defaultOptions
+
+data Pack = Pack
   { gid :: Gid
-  , cards :: NonEmptyList Card
+  , cards :: Array Card
   , position :: Position
   }
+
+derive instance genericPack :: Rep.Generic Pack _
+instance encodePack :: Encode Pack
+  where encode = genericEncode $ DFG.defaultOptions
+instance decodePack :: Decode Pack
+  where decode = genericDecode $ DFG.defaultOptions
 
 -- frontCard :: Pack -> Card
 -- packSize :: Pack -> Int
@@ -85,18 +110,18 @@ type Pack =
 -- gamestate which is shared by every client
 -- needs to be obfuscated to hide asymmetric information
 data SharedGameState = SharedGameState
-  { cardsByGid :: M.Map Gid Pack
+  { cardsByGid :: M.EMap Gid Pack
   }
 
-emptyGameState
-  = SharedGameState {cardsByGid : M.empty}
+emptyGameState :: SharedGameState
+emptyGameState = SharedGameState {cardsByGid : M.empty}
 
 derive instance genericSharedGameState :: Rep.Generic SharedGameState _
-{-instance encodeSharedGameState :: Encode SharedGameState
+instance encodeSharedGameState :: Encode SharedGameState
   where encode = genericEncode $ DFG.defaultOptions
 instance decodeSharedGameState :: Decode SharedGameState
   where decode = genericDecode $ DFG.defaultOptions
--}
+
 -- obfuscateSharedState :: SharedGameState -> ObfuscatedState
 
 type ObfuscatedGameState = SharedGameState
@@ -127,16 +152,19 @@ onGid gid f (SharedGameState gs) = case M.lookup gid gs.cardsByGid of
     Nothing -> SharedGameState gs
 
 flipTop :: Pack -> Pack
-flipTop p = p { cards = NonEmptyList ( flipCard topCard :| otherCards) }
+flipTop (Pack p) = Pack $ case head p.cards of
+  Just topCard -> p { cards = cons (flipCard topCard) otherCards }
+  Nothing -> p
   where
-    topCard = head p.cards
-    otherCards = tail p.cards
+    otherCards = case tail p.cards of
+      Just o -> o
+      Nothing -> []
 
 flipCard :: Card -> Card
-flipCard c = c { faceDir = oppositeDir c.faceDir }
+flipCard (Card c) = Card $ c { faceDir = oppositeDir c.faceDir }
 
 moveTo :: Position -> Pack -> Pack
-moveTo l p = p { position = l }
+moveTo (Pos l) (Pack p) = Pack $ p { position = Pos l }
 
 -- GAME EVENT
 
