@@ -11,7 +11,8 @@
     "purescript-console": "^3.0.0",
     "purescript-easy-ffi": "^2.1.2",
     "purescript-exists": "^3.0.0",
-    "purescript-foreign-generic": "^5.0.0"
+    "purescript-foreign-generic": "^5.0.0",
+    "purescript-newtype": "^2.0.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^3.0.0"

@@ -99,6 +99,8 @@ instance decodeSharedGameState :: Decode SharedGameState
 -}
 -- obfuscateSharedState :: SharedGameState -> ObfuscatedState
 
+type ObfuscatedGameState = SharedGameState
+
 data SharedGameEvent
   -- flips the direction of the top card in a pack
   = FlipTop Gid
@@ -153,6 +155,7 @@ instance gameEventShow :: Show GameEvent
 -- messages server -> client
 data ServerMessage
   = PlayerId { id :: Int }
+  --ConfirmJoin { assignedId :: Int, serverGameState :: ObfuscatedGameState }
   | NewPlayer { id :: Int }
   | SvMoveGid { id :: Int, x :: Int, y :: Int }
   | ConfirmUpdates { events :: Array GameEvent }
