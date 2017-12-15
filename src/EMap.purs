@@ -25,6 +25,9 @@ newtype EMap k v = EMap (M.Map k v)
 
 derive instance newtypeEMap :: Newtype (EMap k v) _
 
+instance showEmap :: (Show k, Show v) => Show (EMap k v)
+  where show = unwrap >>> show
+
 -- Decode/Encode key
 
 class DecodeKey k where
@@ -72,3 +75,6 @@ lookup k m = M.lookup k (unwrap m)
 
 update :: forall k v. Ord k => (v -> Maybe v) -> k -> EMap k v -> EMap k v
 update f k m = wrap $ M.alter (maybe Nothing f) k (unwrap m)
+
+insert :: forall k v. Ord k => k -> v -> EMap k v -> EMap k v
+insert k v m = wrap $ M.insert k v (unwrap m)

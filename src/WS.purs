@@ -114,7 +114,8 @@ onSocketConnection server client = do
   (client `on` ClMessage) (mkImpureFn1 (onMessage server client clientId))
   (client `on` ClClose) (mkImpureFn1 (\_ -> onDisconnect clientId))
   -- send id to client
-  sendMessage client (PlayerId { id : clientId })
+  -- TODO: put actual gamestate
+  sendMessage client (ConfirmJoin { assignedId : clientId, serverGameState : emptyGameState })
   -- update other players
   broadcast server (NewPlayer { id : clientId }) client
 

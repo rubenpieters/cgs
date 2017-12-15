@@ -412,7 +412,7 @@ onServerStrMessage msg = do
 
 onServerMessage :: ∀ e.
                    ServerMessage -> Eff (console :: CONSOLE, ph :: PHASER | e) Unit
-onServerMessage (PlayerId {id: id}) = do
+onServerMessage (ConfirmJoin {assignedId: id, roomGameState: gs}) = do
   log ("assigned player id: " <> show id)
 onServerMessage (NewPlayer {id: id}) = do
   log ("new player connected: " <> show id)

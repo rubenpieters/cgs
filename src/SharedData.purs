@@ -46,6 +46,8 @@ instance encodeFaceDir :: Encode FaceDir
   where encode = genericEncode $ DFG.defaultOptions
 instance decodeFaceDir :: Decode FaceDir
   where decode = genericDecode $ DFG.defaultOptions
+instance showFaceDir :: Show FaceDir
+  where show = genericShow
 
 oppositeDir :: FaceDir -> FaceDir
 oppositeDir FaceUp = FaceDown
@@ -67,6 +69,8 @@ instance encodeCard :: Encode Card
   where encode = genericEncode $ DFG.defaultOptions
 instance decodeCard :: Decode Card
   where decode = genericDecode $ DFG.defaultOptions
+instance showCard :: Show Card
+  where show = genericShow
 
 cardTexture :: Card -> TextureLoc
 cardTexture (Card c) = case c.faceDir of
@@ -89,6 +93,8 @@ instance encodePosition :: Encode Position
   where encode = genericEncode $ DFG.defaultOptions
 instance decodePosition :: Decode Position
   where decode = genericDecode $ DFG.defaultOptions
+instance showPosition :: Show Position
+  where show = genericShow
 
 data Pack = Pack
   { gid :: Gid
@@ -101,6 +107,8 @@ instance encodePack :: Encode Pack
   where encode = genericEncode $ DFG.defaultOptions
 instance decodePack :: Decode Pack
   where decode = genericDecode $ DFG.defaultOptions
+instance showPack :: Show Pack
+  where show = genericShow
 
 -- frontCard :: Pack -> Card
 -- packSize :: Pack -> Int
@@ -121,6 +129,10 @@ instance encodeSharedGameState :: Encode SharedGameState
   where encode = genericEncode $ DFG.defaultOptions
 instance decodeSharedGameState :: Decode SharedGameState
   where decode = genericDecode $ DFG.defaultOptions
+instance showSharedGameState :: Show SharedGameState
+  where show = genericShow
+
+-- TODO: create obfuscation of gamestate
 
 -- obfuscateSharedState :: SharedGameState -> ObfuscatedState
 
@@ -137,6 +149,8 @@ instance encodeSharedGameEvent :: Encode SharedGameEvent
   where encode = genericEncode $ DFG.defaultOptions
 instance decodeSharedGameEvent :: Decode SharedGameEvent
   where decode = genericDecode $ DFG.defaultOptions
+instance showSharedGameEvent :: Show SharedGameEvent
+  where show = genericShow
 
 updateSGE :: SharedGameEvent -> SharedGameState -> SharedGameState
 updateSGE (FlipTop gid) gs = onGid gid flipTop gs
@@ -182,8 +196,7 @@ instance gameEventShow :: Show GameEvent
 
 -- messages server -> client
 data ServerMessage
-  = PlayerId { id :: Int }
-  --ConfirmJoin { assignedId :: Int, serverGameState :: ObfuscatedGameState }
+  = ConfirmJoin { assignedId :: Int, roomGameState :: ObfuscatedGameState }
   | NewPlayer { id :: Int }
   | SvMoveGid { id :: Int, x :: Int, y :: Int }
   | ConfirmUpdates { events :: Array GameEvent }
