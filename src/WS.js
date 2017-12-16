@@ -35,18 +35,18 @@ exports.unsafeBroadcast = function(server) {
   };
 };
 
-var players;
+var serverState;
 
-exports.initPlayers = function() {
-  players = [];
+exports.initServerState = function() {
+  serverState = [];
 };
 
-exports.getPlayers = function() {
-  return players;
+exports.getServerState = function() {
+  return serverState;
 };
 
-exports.setPlayers = function(update) {
+exports.setServerState = function(update) {
   return function() {
-    players = update;
+    serverState = update;
   };
 };

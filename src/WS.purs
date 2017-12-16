@@ -15,9 +15,20 @@ import Data.Traversable
 import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console
 
-foreign import initPlayers :: ∀ e. Eff (ws :: WS | e) (Array Player)
-foreign import getPlayers :: ∀ e. Eff (ws :: WS | e) (Array Player)
-foreign import setPlayers :: ∀ e. Array Player -> Eff (ws :: WS | e) Unit
+foreign import initServerState :: ∀ e. Eff (ws :: WS | e) RoomState
+foreign import getServerState :: ∀ e. Eff (ws :: WS | e) RoomState
+foreign import setServerState :: ∀ e. RoomState -> Eff (ws :: WS | e) Unit
+
+type RoomState =
+  { players :: Array Player
+  , gameState :: SharedGameState
+  }
+
+emptyRoomState :: RoomState
+emptyRoomState =
+  { players : []
+  , gameState : emptyGameState
+  }
 
 type Player =
   { id :: Int
@@ -25,9 +36,8 @@ type Player =
 
 startServer = do
   log "Server started"
--- TODO: manage players with IORef or similar?
-  players <- initPlayers
-  let gs = emptyGameState
+-- TODO: manage serverState with IORef or similar?
+  setServerState emptyRoomState
   wss <- mkServer { port : 8080 }
   -- handler when player connects
   (wss `on` SvConnection) (mkImpureFn1 $ onSocketConnection wss)
@@ -113,18 +123,19 @@ onSocketConnection server client = do
   -- set event handlers
   (client `on` ClMessage) (mkImpureFn1 (onMessage server client clientId))
   (client `on` ClClose) (mkImpureFn1 (\_ -> onDisconnect clientId))
+  -- read room state
+  roomState <- getServerState
   -- send id to client
   -- TODO: put actual gamestate
-  sendMessage client (ConfirmJoin { assignedId : clientId, serverGameState : emptyGameState })
+  sendMessage client (ConfirmJoin { assignedId : clientId, roomGameState : roomState.gameState })
   -- update other players
   broadcast server (NewPlayer { id : clientId }) client
 
-  players <- getPlayers
   -- send all players to new player
   -- TODO: batch into one message?
-  for_ players (\player -> sendMessage client (NewPlayer { id : player.id }))
+  for_ roomState.players (\player -> sendMessage client (NewPlayer { id : player.id }))
   -- update player list
-  setPlayers ({id : clientId} : players)
+  setServerState (roomState {players = {id : clientId} : roomState.players})
 
 onMessage :: ∀ e.
              (Server ClientMessage ServerMessage) ->
@@ -153,9 +164,9 @@ onDisconnect :: ∀ e. Int -> Eff (console :: CONSOLE, ws :: WS | e) Unit
 onDisconnect toRemoveId = do
   -- find player to remove
   log ("removing player")
-  players <- getPlayers
-  let newPlayers = filter (\p -> p.id /= toRemoveId) players
-  setPlayers newPlayers
+  roomState <- getServerState
+  let (newPlayers :: Array Player) = filter (\p -> p.id /= toRemoveId) roomState.players
+  setServerState (roomState {players = newPlayers})
 
 -- TODO: use purescript-foreign-callbacks? (needs to be updated first)
 
