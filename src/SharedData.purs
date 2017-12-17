@@ -24,7 +24,6 @@ import Data.Foreign.Generic as DFG
 import Data.Generic.Rep as Rep
 import Data.Generic.Rep.Show (genericShow)
 import Data.List.NonEmpty (NonEmptyList(..))
---import EMap as M
 import Data.Map as M
 import Data.Newtype (unwrap)
 import Data.NonEmpty ((:|))
