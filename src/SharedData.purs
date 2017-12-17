@@ -1,28 +1,31 @@
 module SharedData where
 
+import Prelude
 
-import Control.Monad.Eff.Exception
+import Data.Argonaut.Core (stringify)
+import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
+import Data.Argonaut.Decode.Generic.Rep (class DecodeLiteral, decodeLiteralSumWithTransform, genericDecodeJson)
+import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
+import Data.Argonaut.Encode.Generic.Rep (class EncodeLiteral, encodeLiteralSumWithTransform, genericEncodeJson)
 import Data.Either
 import Data.Foldable
 import Data.Foreign
 import Data.Maybe
 import Data.Traversable
 import Data.Tuple
-import Prelude
 
 import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
+import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
 import Control.Monad.Except.Trans (runExceptT)
-import Data.Array (toUnfoldable, fromFoldable, uncons, cons, head, tail)
-import Data.Foreign.Class (class Encode, class Decode)
-import Data.Foreign.Generic (genericEncode, encodeJSON, genericDecode, decodeJSON)
+import Data.Array
 import Data.Foreign.Generic as DFG
 import Data.Generic.Rep as Rep
 import Data.Generic.Rep.Show (genericShow)
 import Data.List.NonEmpty (NonEmptyList(..))
-import EMap as M
---import Data.Map as M
+--import EMap as M
+import Data.Map as M
 import Data.Newtype (unwrap)
 import Data.NonEmpty ((:|))
 
@@ -42,10 +45,15 @@ data FaceDir = FaceUp | FaceDown
 
 derive instance eqFaceDir :: Eq FaceDir
 derive instance genericFaceDir :: Rep.Generic FaceDir _
-instance encodeFaceDir :: Encode FaceDir
+{-instance encodeFaceDir :: Encode FaceDir
   where encode = genericEncode $ DFG.defaultOptions
 instance decodeFaceDir :: Decode FaceDir
   where decode = genericDecode $ DFG.defaultOptions
+-}
+instance encodeJsonFaceDir :: EncodeJson FaceDir
+  where encodeJson = genericEncodeJson
+instance decodeJsonFaceDir :: DecodeJson FaceDir
+  where decodeJson = genericDecodeJson
 instance showFaceDir :: Show FaceDir
   where show = genericShow
 
@@ -65,10 +73,10 @@ data Card = Card
   }
 
 derive instance genericCard :: Rep.Generic Card _
-instance encodeCard :: Encode Card
-  where encode = genericEncode $ DFG.defaultOptions
-instance decodeCard :: Decode Card
-  where decode = genericDecode $ DFG.defaultOptions
+instance encodeJsonCard :: EncodeJson Card
+  where encodeJson = genericEncodeJson
+instance decodeJsonCard :: DecodeJson Card
+  where decodeJson = genericDecodeJson
 instance showCard :: Show Card
   where show = genericShow
 
@@ -78,6 +86,9 @@ cardTexture (Card c) = case c.faceDir of
   FaceDown -> c.textureBack
 --cardTexture c | c.faceDir == FaceUp = c.textureFront
 --cardTexture c | c.faceDir == FaceDown = c.textureBack
+
+-- player global identifier
+type PlayerId = Int
 
 -- pack's global identifier
 type Gid = Int
@@ -89,10 +100,10 @@ data Position = Pos
   }
 
 derive instance genericPosition :: Rep.Generic Position _
-instance encodePosition :: Encode Position
-  where encode = genericEncode $ DFG.defaultOptions
-instance decodePosition :: Decode Position
-  where decode = genericDecode $ DFG.defaultOptions
+instance encodeJsonPosition :: EncodeJson Position
+  where encodeJson = genericEncodeJson
+instance decodeJsonPosition :: DecodeJson Position
+  where decodeJson = genericDecodeJson
 instance showPosition :: Show Position
   where show = genericShow
 
@@ -100,13 +111,15 @@ data Pack = Pack
   { gid :: Gid
   , cards :: Array Card
   , position :: Position
+--  , lockedBy :: Maybe PlayerId
   }
 
 derive instance genericPack :: Rep.Generic Pack _
-instance encodePack :: Encode Pack
-  where encode = genericEncode $ DFG.defaultOptions
-instance decodePack :: Decode Pack
-  where decode = genericDecode $ DFG.defaultOptions
+
+instance encodeJsonPack :: EncodeJson Pack
+  where encodeJson = genericEncodeJson
+instance decodeJsonPack :: DecodeJson Pack
+  where decodeJson = genericDecodeJson
 instance showPack :: Show Pack
   where show = genericShow
 
@@ -118,17 +131,17 @@ instance showPack :: Show Pack
 -- gamestate which is shared by every client
 -- needs to be obfuscated to hide asymmetric information
 data SharedGameState = SharedGameState
-  { cardsByGid :: M.EMap Gid Pack
+  { cardsByGid :: M.Map Gid Pack
   }
 
 emptyGameState :: SharedGameState
 emptyGameState = SharedGameState {cardsByGid : M.empty}
 
 derive instance genericSharedGameState :: Rep.Generic SharedGameState _
-instance encodeSharedGameState :: Encode SharedGameState
-  where encode = genericEncode $ DFG.defaultOptions
-instance decodeSharedGameState :: Decode SharedGameState
-  where decode = genericDecode $ DFG.defaultOptions
+instance encodeJsonSharedGameState :: EncodeJson SharedGameState
+  where encodeJson = genericEncodeJson
+instance decodeJsonSharedGameState :: DecodeJson SharedGameState
+  where decodeJson = genericDecodeJson
 instance showSharedGameState :: Show SharedGameState
   where show = genericShow
 
@@ -145,10 +158,10 @@ data SharedGameEvent
   | MoveTo Position Gid
 
 derive instance genericSharedGameEvent :: Rep.Generic SharedGameEvent _
-instance encodeSharedGameEvent :: Encode SharedGameEvent
-  where encode = genericEncode $ DFG.defaultOptions
-instance decodeSharedGameEvent :: Decode SharedGameEvent
-  where decode = genericDecode $ DFG.defaultOptions
+instance encodeJsonSharedGameEvent :: EncodeJson SharedGameEvent
+  where encodeJson = genericEncodeJson
+instance decodeJsonSharedGameEvent :: DecodeJson SharedGameEvent
+  where decodeJson = genericDecodeJson
 instance showSharedGameEvent :: Show SharedGameEvent
   where show = genericShow
 
@@ -180,15 +193,29 @@ flipCard (Card c) = Card $ c { faceDir = oppositeDir c.faceDir }
 moveTo :: Position -> Pack -> Pack
 moveTo (Pos l) (Pack p) = Pack $ p { position = Pos l }
 
+drawFromPack :: Pack -> Int -> {remaining :: Array Card, drawn :: Array Card}
+drawFromPack _ x | x <= 0 = unsafeThrowException (error "drawing <= 0")
+drawFromPack (Pack p) n = { remaining : remaining, drawn : drawn }
+  where
+    remaining = drop n p.cards
+    drawn = take n p.cards
+
+
+
 -- GAME EVENT
 
-data GameEvent = Select Gid | Gather | Remove Gid | Flip Gid
+data GameEvent = Select Gid
+               | Gather
+               | Remove Gid
+               | Flip Gid
+               | Lock Gid
+               | Draw Int Gid
 
 derive instance genericGameEvent :: Rep.Generic GameEvent _
-instance encodeGameEvent :: Encode GameEvent
-  where encode = genericEncode $ DFG.defaultOptions
-instance decodeGameEvent :: Decode GameEvent
-  where decode = genericDecode $ DFG.defaultOptions
+instance encodeJsonGameEvent :: EncodeJson GameEvent
+  where encodeJson = genericEncodeJson
+instance decodeJsonGameEvent :: DecodeJson GameEvent
+  where decodeJson = genericDecodeJson
 instance gameEventShow :: Show GameEvent
   where show = genericShow
 
@@ -202,10 +229,10 @@ data ServerMessage
   | ConfirmUpdates { events :: Array GameEvent }
 
 derive instance genericServerMessage :: Rep.Generic ServerMessage _
-instance encodeServerMessage :: Encode ServerMessage
-  where encode = genericEncode $ DFG.defaultOptions
-instance decodeServerMessage :: Decode ServerMessage
-  where decode = genericDecode $ DFG.defaultOptions
+instance encodeJsonServerMessage :: EncodeJson ServerMessage
+  where encodeJson = genericEncodeJson
+instance decodeJsonServerMessage :: DecodeJson ServerMessage
+  where decodeJson = genericDecodeJson
 instance showServerMessage :: Show ServerMessage
   where show = genericShow
 
@@ -215,22 +242,10 @@ data ClientMessage
   | ClGameStateUpdate { events :: Array GameEvent}
 
 derive instance genericClientMessage :: Rep.Generic ClientMessage _
-instance encodeClientMessage :: Encode ClientMessage
-  where encode = genericEncode $ DFG.defaultOptions
-instance decodeClientMessage :: Decode ClientMessage
-  where decode = genericDecode $ DFG.defaultOptions
+instance encodeJsonClientMessage :: EncodeJson ClientMessage
+  where encodeJson = genericEncodeJson
+instance decodeClientMessage :: DecodeJson ClientMessage
+  where decodeJson = genericDecodeJson
 instance showClientMessage :: Show ClientMessage
   where show = genericShow
 
--- decode utility (move somewhere else?)
-
-decodeJSONEither :: ∀ a. Decode a => String -> Either (NonEmptyList ForeignError) a
-decodeJSONEither = decodeJSON >>> runExceptT >>> unwrap
-
-unsafeDecodeJSON :: ∀ e a. Decode a => String -> Eff e a
-unsafeDecodeJSON s = do
-  case (decodeJSONEither s) of
-    -- TODO: print decoding errors
-    -- TODO: use a logging effect?
-    (Left errList) -> unsafeThrowException (error "error decoding")
-    (Right value) -> pure value

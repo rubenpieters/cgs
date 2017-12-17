@@ -3,12 +3,13 @@ module WS where
 import SharedData
 
 import Prelude
-
+import Data.Argonaut.Core (stringify)
+import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
+import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
+import Data.Argonaut.Parser (jsonParser)
 import Data.Array
 import Data.Either
-import Data.Foreign.Class (class Encode, class Decode)
 import Data.Foreign.EasyFFI
-import Data.Foreign.Generic (encodeJSON, decodeJSON)
 import Data.Maybe
 import Data.Traversable
 
@@ -31,7 +32,7 @@ emptyRoomState =
   }
 
 type Player =
-  { id :: Int
+  { id :: PlayerId
   }
 
 startServer = do
@@ -59,19 +60,19 @@ foreign import mkServer :: ∀ e cmsg smsg. { port :: Int } -> Eff (ws :: WS | e
 serverClients :: ∀ e cmsg smsg. (Server cmsg smsg) -> Eff (ws :: WS | e) (Array (Client smsg cmsg))
 serverClients = unsafeForeignFunction ["server", ""] "server.clients"
 
-sendMessage :: ∀ e cmsg smsg. (Encode smsg) =>
+sendMessage :: ∀ e cmsg smsg. (EncodeJson smsg) =>
                (Client smsg cmsg) -> smsg -> Eff (ws :: WS, console :: CONSOLE | e) Unit
 sendMessage client msg = do
   let test = unsafeForeignFunction ["x", ""] "typeof x"
   testVal <- test client
   log ("test_sendMessage: " <> testVal)
-  unsafeSendMessage client (encodeJSON msg)
+  unsafeSendMessage client (stringify $ encodeJson msg)
 
 foreign import unsafeSendMessage :: ∀ e cmsg smsg. (Client cmsg smsg) -> String -> Eff (ws :: WS | e) Unit
 
-broadcast :: ∀ e cmsg smsg. (Encode smsg) =>
+broadcast :: ∀ e cmsg smsg. (EncodeJson smsg) =>
              (Server cmsg smsg) -> smsg -> (Client smsg cmsg) -> Eff (ws :: WS, console :: CONSOLE | e) Unit
-broadcast server msg exceptClient = unsafeBroadcast server (encodeJSON msg) exceptClient
+broadcast server msg exceptClient = unsafeBroadcast server (stringify $ encodeJson msg) exceptClient
 --broadcast server msg exceptClient = do
 --  clients <- serverClients server
 --  for_ clients (\c -> sendMessage c msg)
@@ -143,7 +144,7 @@ onMessage :: ∀ e.
              Int -> String -> Eff (console :: CONSOLE, ws :: WS | e) Unit
 onMessage server client id message = do
   log ("received message " <> message)
-  let eSvMsg = decodeJSONEither message
+  let eSvMsg = jsonParser message >>= decodeJson
   case eSvMsg of
     Left errs -> log ("malformed message")
     Right (clMsg :: ClientMessage) -> onClientMessage server client id clMsg

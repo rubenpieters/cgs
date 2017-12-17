@@ -4,6 +4,10 @@ import SharedData
 
 import Prelude
 
+import Data.Argonaut.Core (stringify)
+import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
+import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
+import Data.Argonaut.Parser (jsonParser)
 import Data.Maybe
 import Data.Either
 import Data.Tuple
@@ -138,7 +142,7 @@ showGameEvent :: GameEvent -> String
 showGameEvent = show
 
 encodeGE :: GameEvent -> String
-encodeGE = encodeJSON
+encodeGE = encodeJson >>> stringify
 
 decodeEither :: ∀ a. Decode a => String -> Either (NonEmptyList ForeignError) a
 decodeEither s = unwrap $ runExceptT $ decodeJSON s
@@ -149,18 +153,8 @@ unsafeDecode s = do
     (Left errList) -> unsafeThrowException (error "error decoding GameEvent")
     (Right value) -> pure value
 
-
-decodeGE :: String -> Either (NonEmptyList ForeignError) GameEvent
-decodeGE = decodeEither
-
-unsafeDecodeGE :: ∀ e. String -> Eff (console :: CONSOLE | e) GameEvent
-unsafeDecodeGE = unsafeDecode
-
 encodeGEA :: Array GameEvent -> String
-encodeGEA = encodeJSON
-
-unsafeDecodeGEA :: ∀ e. String -> Eff (console :: CONSOLE | e) (Array GameEvent)
-unsafeDecodeGEA = unsafeDecode
+encodeGEA = encodeJson >>> stringify
 
 type GameState =
   { cards :: M.Map Cid PhCard
@@ -181,6 +175,8 @@ updateGameState es = do
     update Gather = gatherCards
     update (Remove cid) = removeCard cid
     update (Flip cid) = onCard cid flipCard
+    update (Lock _) = unsafeThrowException (error "unimplemented")
+    update (Draw _ _) = unsafeThrowException (error "unimplemented")
 
 updateCards :: ∀ e. Eff (ph :: PHASER | e) Unit
 updateCards = do
@@ -370,8 +366,8 @@ foreign import data Socket :: Type
 foreign import getSocket :: ∀ e. Eff (ph :: PHASER | e) Socket
 foreign import unsafeEmit :: ∀ e. Socket -> String -> Eff (ph :: PHASER | e) Unit
 
-emit :: ∀ e msg. (Encode msg) => Socket -> msg -> Eff (ph :: PHASER | e) Unit
-emit socket msgStr = unsafeEmit socket (encodeJSON msgStr)
+emit :: ∀ e msg. (EncodeJson msg) => Socket -> msg -> Eff (ph :: PHASER | e) Unit
+emit socket msgStr = unsafeEmit socket (stringify $ encodeJson msgStr)
 
 sendUpdates :: ∀ e. Socket -> Array GameEvent-> Eff (ph :: PHASER | e) Unit
 sendUpdates socket events = emit socket (ClGameStateUpdate { events: events })
@@ -405,7 +401,7 @@ emit socket msg@(GameStateUpdate d) = unsafeEmit socket (networkMsgString msg) d
 onServerStrMessage :: ∀ e.
                       String -> Eff (console :: CONSOLE, ph :: PHASER | e) Unit
 onServerStrMessage msg = do
-  let eSvMsg = decodeJSONEither msg
+  let eSvMsg = jsonParser msg >>= decodeJson
   case eSvMsg of
     Left errs -> log "malformed message"
     Right (svMsg :: ServerMessage) -> onServerMessage svMsg
