@@ -163,6 +163,30 @@ type GameState =
 emptyGS :: GameState
 emptyGS = { cards : M.empty }
 
+data LockStatus = LockedBySelf | LockedByOther | NotLocked
+
+lockStatus :: ClPack -> Eff _ LockStatus
+lockStatus c = do
+  props <- c # getProps
+  -- TODO: get player id and check with that instead of `1`
+  let res = case (props.lockedBy) of
+              Just playerId -> if playerId == 1
+                then LockedBySelf
+                else LockedByOther
+              Nothing -> NotLocked
+  pure res
+
+lockStatusGid :: Gid -> Eff _ LockStatus
+lockStatusGid gid = onCard' gid lockStatus
+
+cardLocked :: Gid -> Eff _ Boolean
+cardLocked gid = do
+  lockStatus <- lockStatusGid gid
+  case lockStatus of
+    LockedBySelf -> pure true
+    LockedByOther -> pure true
+    NotLocked -> pure false
+
 updateGameState :: ∀ e. Array GameEvent -> Eff (ph :: PHASER | e) Unit
 updateGameState es = do
   -- handle events
@@ -178,7 +202,7 @@ updateGameState es = do
     update Gather = unsafeThrowException (error "unimplemented")
     update (Remove gid) = unsafeThrowException (error "unimplemented")
     update (Flip gid) = onCard gid flipCard
-    update (Lock _) = unsafeThrowException (error "unimplemented")
+    update (Lock gid) = onCard gid lockCard
     update (Draw _ _) = unsafeThrowException (error "unimplemented")
 
 updateCards :: ∀ e. Eff (ph :: PHASER | e) Unit
@@ -294,6 +318,12 @@ flipCard c = do
         -- if pack is empty, flip does nothing
         Nothing -> pure unit
 
+lockCard :: ClPack -> Eff _ Unit
+lockCard c = do
+  props <- c # getProps
+  let (newProps :: PackProps) = (props { lockedBy = Just 1 })
+  c # setProps newProps
+
 onCard :: ∀ e. Gid
        -> (ClPack -> Eff (ph :: PHASER | e) Unit)
        -> Eff (ph :: PHASER | e) Unit
@@ -303,6 +333,16 @@ onCard gid f = do
   case mc of
     Just (c :: ClPack) -> f c
     Nothing -> pure unit
+
+onCard' :: ∀ a e. Gid
+       -> (ClPack -> Eff (ph :: PHASER | e) a)
+       -> Eff (ph :: PHASER | e) a
+onCard' gid f = do
+  (LocalGameState gs) <- getGameState
+  let (mc :: Maybe ClPack) = M.lookup gid gs.cardsByGid
+  case mc of
+    Just (c :: ClPack) -> f c
+    Nothing -> unsafeThrowException (error ("card " <> show gid <> " does not exist"))
 
 {-addNewCard :: GameState -> Eff (ph :: PHASER) GameState
 addNewCard gs =

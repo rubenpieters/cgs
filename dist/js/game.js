@@ -227,15 +227,23 @@ function render() {
 function updateDragTrigger() {
   if (dragTrigger.status != "none" && dragTrigger.status != "dragging" && dragTrigger.left) {
     if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
-      if (dragTrigger.c.pack.dragMode === "drag") {
-        dragTrigger.c.pack.dragging = true;
-        dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: dragTrigger.c };
+      if (PS.ClientMain.cardLocked(dragTrigger.c.props.gid)()) {
+        // noop
       } else {
-        var newCard = PS.ClientMain.drawFromPack({x: dragTrigger.c.x, y: dragTrigger.c.y})(dragTrigger.c)();
-        dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: newCard };
-        console.log("draw");
+        eventBuffer.push(new PS.SharedData.Lock(dragTrigger.c.props.gid));
       }
     }
+  }
+}
+
+function activateDragTrigger() {
+  if (dragTrigger.c.pack.dragMode === "drag") {
+    dragTrigger.c.pack.dragging = true;
+    dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: dragTrigger.c };
+  } else {
+    var newCard = PS.ClientMain.drawFromPack({x: dragTrigger.c.x, y: dragTrigger.c.y})(dragTrigger.c)();
+    dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: newCard };
+    console.log("draw");
   }
 }
 
