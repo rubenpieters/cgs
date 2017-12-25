@@ -1,7 +1,7 @@
 "use strict";
 
 exports.clearPhaserState=function() {
-  
+
 };
 
 // {x :: Int, y :: Int, texture :: String, size :: Int, pack :: Pack}
@@ -48,6 +48,18 @@ exports.setProps=function(props) {
     };
   };
 };
+
+exports.activateDragTrigger=function() {
+  //if (dragTrigger.c.pack.dragMode === "drag") {
+    dragTrigger.c.props.dragging = true;
+    dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: dragTrigger.c };
+    console.log("drag");
+  /*} else {
+    var newCard = PS.ClientMain.drawFromPack({x: dragTrigger.c.x, y: dragTrigger.c.y})(dragTrigger.c)();
+    dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: newCard };
+    console.log("draw");
+  }*/
+}
 
 // {x :: Int, y :: Int, pack :: Array Card}
 exports.phMkCard=function(o) {
@@ -111,8 +123,8 @@ exports.updateCardInfo=function(card) {
   };
 };
 
-exports.setTint=function(card) {
-  return function(color) {
+exports.setTint=function(color) {
+  return function(card) {
     return function() {
       card.tint = color;
     };
@@ -175,11 +187,8 @@ exports.updateDraggedCard=function(card) {
     var newY = PS.ClientMain.clamp(game.input.y - (cardH / 2))({lBound: 0, uBound: playRegionY - cardH});
     card.x = newX;
     card.y = newY;
-    card.pack.packText.x = newX + 3;
-    card.pack.packText.y = newY + 3;
-    /*if (connected) {
-      socket.send(JSON.stringify({type: "move gid", data: { gid: card.pack.gid, x: card.x, y: card.y }}));
-    };*/
+    card.packText.x = newX + 3;
+    card.packText.y = newY + 3;
   };
 };
 
@@ -210,7 +219,7 @@ exports.phaserProps=function(card) {
 
 exports.phKill=function(o) {
   return function() {
-    o.pack.packText.kill();
+    o.packText.kill();
     o.kill();
     gameState = PS.ClientMain.removeCardGS(o)(gameState)();
   };

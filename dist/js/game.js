@@ -215,7 +215,7 @@ function update() {
     eventBuffer = [];
   }
 
-  //PS.ClientMain.updateCards();
+  PS.ClientMain.updateCards();
 
   updateDragTrigger();
 }
@@ -233,17 +233,6 @@ function updateDragTrigger() {
         eventBuffer.push(new PS.SharedData.Lock(dragTrigger.c.props.gid));
       }
     }
-  }
-}
-
-function activateDragTrigger() {
-  if (dragTrigger.c.pack.dragMode === "drag") {
-    dragTrigger.c.pack.dragging = true;
-    dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: dragTrigger.c };
-  } else {
-    var newCard = PS.ClientMain.drawFromPack({x: dragTrigger.c.x, y: dragTrigger.c.y})(dragTrigger.c)();
-    dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: newCard };
-    console.log("draw");
   }
 }
 

@@ -64,52 +64,53 @@ foreign import phMkCard :: ∀ e. {x :: Int, y :: Int, pack :: Array Card}
                         -> Eff (ph :: PHASER | e) PhCard
 --foreign import cardInfo :: PhCard -> CardInfo
 foreign import packInfo :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Packx
-foreign import phaserProps :: ∀ e. PhCard -> Eff (ph :: PHASER | e) PhaserProps
+foreign import phaserProps :: ∀ e. ClPack -> Eff (ph :: PHASER | e) PhaserProps
 foreign import toggleSelected :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
 foreign import showCardSelectMenu :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
 foreign import hideCardSelectMenu :: ∀ e. Eff (ph :: PHASER | e) Unit
 foreign import checkOverlap :: PhCard -> PhCard -> Boolean
 foreign import gameState :: ∀ e. Eff (ph :: PHASER | e) GameState
-foreign import updateDraggedCard :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
+foreign import updateDraggedCard :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import isConnected :: ∀ e. Eff (ph :: PHASER | e) Boolean
 foreign import moveCard :: ∀ e. Int -> Int -> ClPack -> Eff (ph :: PHASER | e) Unit
-foreign import setTint :: ∀ e. PhCard -> Int -> Eff (ph :: PHASER | e) Unit
+foreign import setTint :: ∀ e. Int -> ClPack -> Eff (ph :: PHASER | e) Unit
 --foreign import setCardInfo :: PhCard -> CardInfo -> Eff (ph :: PHASER) Unit
 foreign import updateCardInfo :: ∀ e r. PhCard -> { | r } -> Eff (ph :: PHASER | e) Unit
 foreign import updatePackText :: ∀ e. PhCard -> String -> Eff (ph :: PHASER | e) Unit
 
-foreign import phKill :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
+foreign import phKill :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import phLoadTexture :: ∀ e. ClPack -> String -> Int -> Boolean -> Eff (ph :: PHASER | e) Unit
 
-
+{-
 updateCardSelectMenu :: ∀ e. Eff (ph :: PHASER | e) Unit
 updateCardSelectMenu = do
-  gs <- gameState
+  gs <- getGameState
   sm <- selectMode gs
   case sm of
     (Single c) -> showCardSelectMenu c
     Other -> hideCardSelectMenu
+-}
 
-data SelectMode = Single PhCard | Other
+data SelectMode = Single ClPack | Other
 
-selectMode :: ∀ e. GameState -> Eff (ph :: PHASER | e) SelectMode
-selectMode gs = do
+selectMode :: ∀ e. LocalGameState -> Eff (ph :: PHASER | e) SelectMode
+selectMode (LocalGameState gs) = do
   f <- filtered
   pure case f of
     (c:Nil) -> Single c
     _ -> Other
   where
-    filtered = filterM (\c -> isSelected c) (M.values gs.cards)
+    filtered = filterM (\c -> isSelected c) (M.values gs.cardsByGid)
 
-isSelected :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Boolean
+isSelected :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Boolean
 isSelected c = do
-  pi <- packInfo c
-  pure pi.selected
+  props <- c # getProps
+  pure props.selected
 
-isDragging :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Boolean
+isDragging :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Boolean
 isDragging c = do
-  pi <- packInfo c
-  pure pi.dragging
+  props <- c # getProps
+  pure props.dragging
 
 type Packx =
   { pack :: Array Card
@@ -160,8 +161,8 @@ type GameState =
   { cards :: M.Map Cid PhCard
   }
 
-emptyGS :: GameState
-emptyGS = { cards : M.empty }
+emptyGS :: LocalGameState
+emptyGS = LocalGameState { cardsByGid : M.empty }
 
 data LockStatus = LockedBySelf | LockedByOther | NotLocked
 
@@ -187,14 +188,14 @@ cardLocked gid = do
     LockedByOther -> pure true
     NotLocked -> pure false
 
-updateGameState :: ∀ e. Array GameEvent -> Eff (ph :: PHASER | e) Unit
+updateGameState :: Array GameEvent -> Eff _ Unit
 updateGameState es = do
   -- handle events
   traverse_ update es
   -- update cards
 --  updateCards
   where
-    update :: ∀ e. GameEvent -> Eff (ph :: PHASER | e) Unit
+    update :: GameEvent -> Eff _ Unit
     --update (Select cid) = selectCard cid
     --update Gather = gatherCards
     --update (Remove cid) = removeCard cid
@@ -205,15 +206,16 @@ updateGameState es = do
     update (Lock gid) = onCard gid lockCard
     update (Draw _ _) = unsafeThrowException (error "unimplemented")
 
-updateCards :: ∀ e. Eff (ph :: PHASER | e) Unit
+updateCards :: Eff _ Unit
 updateCards = do
-  gs <- gameState
-  traverse_ updateCard gs.cards
+  (LocalGameState gs) <- getGameState
+  traverse_ updateCard gs.cardsByGid
 
-updateCard :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
+updateCard :: ClPack -> Eff _ Unit
 updateCard c = do
-  d <- isDragging c
-  if d
+  props <- c # getProps
+  log ("updating card " <> show props.gid)
+  if props.dragging
      then do
             clearOverlaps
             updateDraggedCard c
@@ -221,27 +223,29 @@ updateCard c = do
             if connected
                then do
                     socket <- getSocket
-                    props <- phaserProps c
-                    pi <- packInfo c
-                    socket `emit` (ClMoveGid {id: pi.gid, x: props.x, y: props.y})
+                    phProps <- c # phaserProps
+                    socket `emit` (ClMoveGid {id: props.gid, x: phProps.x, y: phProps.y})
                else pure unit
-            mOverlap <- findFirstOverlapCard c
+            {-mOverlap <- findFirstOverlapCard c
             case mOverlap of
               Just overlap -> do
                 updateCardInfo overlap { overlapped: true }
-                setTint overlap 0xff0000
+                --setTint 0xff0000 overlap
               Nothing -> pure unit
+              -}
      else pure unit
 
-clearOverlaps :: ∀ e. Eff (ph :: PHASER | e) Unit
+clearOverlaps :: Eff _ Unit
 clearOverlaps = do
-  gs <- gameState
-  traverse_ clearOverlap gs.cards
+  (LocalGameState gs) <- getGameState
+  traverse_ clearOverlap gs.cardsByGid
   where
-    clearOverlap :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
+    clearOverlap :: ClPack -> Eff _ Unit
     clearOverlap c = do
-      updateCardInfo c { overlapped: false }
-      setColor c
+      props <- c # getProps
+      let newProps = props { overlapped = false }
+      c # setProps newProps
+      --setColor c
 
 findFirstOverlapCard :: ∀ e. PhCard -> Eff (ph :: PHASER | e) (Maybe PhCard)
 findFirstOverlapCard c = do
@@ -285,7 +289,8 @@ selectAction c p = pure unit
 setColor :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
 setColor c = do
   pi <- packInfo c
-  setTint c (packTint pi)
+  pure unit
+  --setTint c (packTint pi)
 
 packTint :: Packx -> Int
 packTint p | p.selected = 0x00ff00
@@ -323,6 +328,8 @@ lockCard c = do
   props <- c # getProps
   let (newProps :: PackProps) = (props { lockedBy = Just 1 })
   c # setProps newProps
+  activateDragTrigger
+  c # setTint 0xff0000
 
 onCard :: ∀ e. Gid
        -> (ClPack -> Eff (ph :: PHASER | e) Unit)
@@ -357,10 +364,10 @@ addCard c gs = do
   pure gs { cards = M.insert pi.gid c gs.cards }
 
 -- TODO: keep track of killed cards, so they can be revived
-removeCardGS :: ∀ e. PhCard -> GameState -> Eff (ph :: PHASER | e) GameState
-removeCardGS c gs = do
-  pi <- packInfo c
-  pure gs { cards = M.delete pi.gid gs.cards }
+removeCardGS :: ∀ e. ClPack -> LocalGameState -> Eff (ph :: PHASER | e) LocalGameState
+removeCardGS c (LocalGameState gs) = do
+  props <- c # getProps
+  pure $ LocalGameState $ gs { cardsByGid = M.delete props.gid gs.cardsByGid }
 
 averagePos :: ∀ p f. Foldable f
            => Functor f
@@ -372,15 +379,15 @@ averagePos l =
 
 gatherCards :: ∀ e. Eff (ph :: PHASER | e) Unit
 gatherCards = do
-  gs <- gameState
-  selectedCards :: List PhCard <- filterM isSelected (M.values gs.cards)
+  (LocalGameState gs) <- getGameState
+  selectedCards :: List ClPack <- filterM isSelected (M.values gs.cardsByGid)
   if (length selectedCards) <= 1
      then pure unit
      else do
             props <- traverse phaserProps selectedCards
             let avgPos = averagePos props
-            packs <- traverse packInfo selectedCards
-            let (cards :: List Card) = concat $ (arrayToList <<< _.pack) <$> packs
+            packs <- traverse getProps selectedCards
+            let (cards :: List Card) = concat $ (arrayToList <<< _.cards) <$> packs
             c <- phMkCard {x: avgPos.x, y: avgPos.y, pack: listToArray cards}
             -- add all cards to c
             traverse_ phKill selectedCards
@@ -522,3 +529,5 @@ type PackProps =
 
 foreign import getProps :: ∀ e. ClPack -> Eff (ph :: PHASER | e) PackProps
 foreign import setProps :: ∀ e. PackProps -> ClPack -> Eff (ph :: PHASER | e) Unit
+
+foreign import activateDragTrigger :: ∀ e. Eff (ph :: PHASER | e) Unit
