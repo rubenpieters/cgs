@@ -10,11 +10,14 @@ import Data.Argonaut.Parser (jsonParser)
 import Data.Array
 import Data.Either
 import Data.Foreign.EasyFFI
+import Data.Map as M
 import Data.Maybe
 import Data.Traversable
+import Data.Tuple
 
 import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console
+import Control.Monad.Eff.Ref
 
 foreign import initServerState :: ∀ e. Eff (ws :: WS | e) RoomState
 foreign import getServerState :: ∀ e. Eff (ws :: WS | e) RoomState
@@ -26,19 +29,39 @@ type RoomState =
   }
 
 emptyRoomState :: RoomState
-emptyRoomState =
+emptyRoomState = initialRoomState emptyGameState
+
+initialRoomState :: SharedGameState -> RoomState
+initialRoomState gs =
   { players : []
-  , gameState : emptyGameState
+  , gameState : gs
   }
+
+pgGameState :: SharedGameState
+pgGameState = SharedGameState { cardsByGid : pgCards }
+
+pgCards :: M.Map Int Pack
+pgCards = M.fromFoldable ([
+  Tuple 0 (Pack { gid : 0
+                , cards : cards
+                , position : Pos {x : 50, y : 50}
+                , lockedBy : Nothing
+                })
+  ])
+  where
+    cards = [ mkCardDown "card" "empty"
+            , mkCardDown "card" "empty"
+            ]
 
 type Player =
   { id :: PlayerId
   }
 
+startServer :: Eff _ Unit
 startServer = do
   log "Server started"
 -- TODO: manage serverState with IORef or similar?
-  setServerState emptyRoomState
+  setServerState (initialRoomState pgGameState)
   wss <- mkServer { port : 8080 }
   -- handler when player connects
   (wss `on` SvConnection) (mkImpureFn1 $ onSocketConnection wss)

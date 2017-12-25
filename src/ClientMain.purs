@@ -63,7 +63,7 @@ foreign import data PhCard :: Type
 foreign import phMkCard :: ∀ e. {x :: Int, y :: Int, pack :: Array Card}
                         -> Eff (ph :: PHASER | e) PhCard
 --foreign import cardInfo :: PhCard -> CardInfo
-foreign import packInfo :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Pack
+foreign import packInfo :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Packx
 foreign import phaserProps :: ∀ e. PhCard -> Eff (ph :: PHASER | e) PhaserProps
 foreign import toggleSelected :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
 foreign import showCardSelectMenu :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
@@ -72,14 +72,14 @@ foreign import checkOverlap :: PhCard -> PhCard -> Boolean
 foreign import gameState :: ∀ e. Eff (ph :: PHASER | e) GameState
 foreign import updateDraggedCard :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
 foreign import isConnected :: ∀ e. Eff (ph :: PHASER | e) Boolean
-foreign import moveCard :: ∀ e. Int -> Int -> PhCard -> Eff (ph :: PHASER | e) Unit
+foreign import moveCard :: ∀ e. Int -> Int -> ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import setTint :: ∀ e. PhCard -> Int -> Eff (ph :: PHASER | e) Unit
 --foreign import setCardInfo :: PhCard -> CardInfo -> Eff (ph :: PHASER) Unit
 foreign import updateCardInfo :: ∀ e r. PhCard -> { | r } -> Eff (ph :: PHASER | e) Unit
 foreign import updatePackText :: ∀ e. PhCard -> String -> Eff (ph :: PHASER | e) Unit
 
 foreign import phKill :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
-foreign import phLoadTexture :: ∀ e. PhCard -> String -> Int -> Boolean -> Eff (ph :: PHASER | e) Unit
+foreign import phLoadTexture :: ∀ e. ClPack -> String -> Int -> Boolean -> Eff (ph :: PHASER | e) Unit
 
 
 updateCardSelectMenu :: ∀ e. Eff (ph :: PHASER | e) Unit
@@ -111,7 +111,7 @@ isDragging c = do
   pi <- packInfo c
   pure pi.dragging
 
-type Pack =
+type Packx =
   { pack :: Array Card
   , packText :: String
   , gid :: Int
@@ -120,16 +120,16 @@ type Pack =
   , overlapped :: Boolean
   }
 
+{-
 type Card =
   { texture :: String
   , textureBack :: String
   , faceDir :: FaceDir
   }
+-}
 
-newCard :: Card
-newCard = { texture: "card", textureBack: "empty", faceDir: FaceUp }
-
-data FaceDir = FaceUp | FaceDown
+--newCard :: Card
+--newCard = { texture: "card", textureBack: "empty", faceDir: FaceUp }
 
 type PhaserProps =
   { x :: Int
@@ -168,13 +168,16 @@ updateGameState es = do
   -- handle events
   traverse_ update es
   -- update cards
-  updateCards
+--  updateCards
   where
     update :: ∀ e. GameEvent -> Eff (ph :: PHASER | e) Unit
-    update (Select cid) = selectCard cid
-    update Gather = gatherCards
-    update (Remove cid) = removeCard cid
-    update (Flip cid) = onCard cid flipCard
+    --update (Select cid) = selectCard cid
+    --update Gather = gatherCards
+    --update (Remove cid) = removeCard cid
+    update (Select gid) = unsafeThrowException (error "unimplemented")
+    update Gather = unsafeThrowException (error "unimplemented")
+    update (Remove gid) = unsafeThrowException (error "unimplemented")
+    update (Flip gid) = onCard gid flipCard
     update (Lock _) = unsafeThrowException (error "unimplemented")
     update (Draw _ _) = unsafeThrowException (error "unimplemented")
 
@@ -225,11 +228,12 @@ findFirstOverlapCard c = do
   let (dropped :: List PhCard) = snd <$> dropWhile (\x -> overlapCondition x (Tuple xp c)) (zip p1 cards)
   pure $ head dropped
   where
-    overlapCondition :: Tuple Pack PhCard -> Tuple Pack PhCard -> Boolean
+    overlapCondition :: Tuple Packx PhCard -> Tuple Packx PhCard -> Boolean
     overlapCondition (Tuple p1 _) (Tuple p2 _) | p1.gid == p2.gid = true
     overlapCondition (Tuple _ c1) (Tuple _ c2) | checkOverlap c1 c2 = false
     overlapCondition _ _ = true
 
+{-
 selectCard :: ∀ e. Cid -> Eff (ph :: PHASER | e) Unit
 selectCard cid = do
   onCard cid selectCard'
@@ -241,6 +245,7 @@ selectCard' c = do
   d <- isDragging c
   s <- isSelected c
   selectAction c {dragging: d, selected: s}
+-}
 
 selectAction :: ∀ e. PhCard -> {dragging :: Boolean, selected :: Boolean} -> Eff (ph :: PHASER | e) Unit
 selectAction c p | p.dragging = do
@@ -258,40 +263,45 @@ setColor c = do
   pi <- packInfo c
   setTint c (packTint pi)
 
-packTint :: Pack -> Int
+packTint :: Packx -> Int
 packTint p | p.selected = 0x00ff00
 packTint p = 0xffffff
 
 {-
-toggleSelectProps :: Pack -> {dragging :: Boolean, selected :: Boolean, tint :: String}
+toggleSelectProps :: Packx -> {dragging :: Boolean, selected :: Boolean, tint :: String}
 toggleSelectProps p | p.dragging = { dragging: false, selected: p.selected, tint: "" }
 toggleSelectProps p | p.selected = { selected: false }
 toggleSelectProps p | not p.selected = { selected: true }
 toggleSelectedProps p = p
 -}
 
-flipCard :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
+flipCard :: ClPack -> Eff _ Unit
 flipCard c = do
-  pi <- packInfo c
-  case (uncons pi.pack) of
-        Just { head: firstCard, tail: t} -> do
+  props <- c # getProps
+  case (uncons props.cards) of
+        Just { head: (Card firstCard), tail: t} -> do
           case firstCard.faceDir of
             FaceUp -> do
-              updateCardInfo c { pack: (cons (firstCard {faceDir=FaceDown}) t) }
+              let (newCards :: Array Card) = (cons (Card $ firstCard {faceDir=FaceDown}) t)
+              let (newProps :: PackProps) = (props { cards = newCards})
+              c # setProps newProps
               phLoadTexture c firstCard.textureBack 0 false
             FaceDown -> do
-              updateCardInfo c { pack: (cons (firstCard {faceDir=FaceUp}) t) }
-              phLoadTexture c firstCard.texture 0 false
+              let (newCards :: Array Card) = (cons (Card $ firstCard {faceDir=FaceUp}) t)
+              let (newProps :: PackProps) = (props { cards = newCards})
+              c # setProps newProps
+              phLoadTexture c firstCard.textureFront 0 false
+        -- if pack is empty, flip does nothing
         Nothing -> pure unit
 
-onCard :: ∀ e. Cid
-       -> (PhCard -> Eff (ph :: PHASER | e) Unit)
+onCard :: ∀ e. Gid
+       -> (ClPack -> Eff (ph :: PHASER | e) Unit)
        -> Eff (ph :: PHASER | e) Unit
-onCard cid f = do
-  gs :: GameState <- gameState
-  let (mc :: Maybe PhCard) = M.lookup cid gs.cards
+onCard gid f = do
+  (LocalGameState gs) <- getGameState
+  let (mc :: Maybe ClPack) = M.lookup gid gs.cardsByGid
   case mc of
-    Just (c :: PhCard) -> f c
+    Just (c :: ClPack) -> f c
     Nothing -> pure unit
 
 {-addNewCard :: GameState -> Eff (ph :: PHASER) GameState
@@ -342,8 +352,10 @@ arrayToList = toUnfoldable
 listToArray :: ∀ a. List a -> Array a
 listToArray = fromFoldable
 
+{-
 removeCard :: ∀ e. Cid -> Eff (ph :: PHASER | e) Unit
 removeCard cid = onCard cid phKill
+-}
 
 drawFromPack :: ∀ e. {x :: Int, y :: Int} -> PhCard -> Eff (ph :: PHASER | e) PhCard
 drawFromPack {x: x, y: y} c = do
@@ -410,6 +422,9 @@ onServerMessage :: ∀ e.
                    ServerMessage -> Eff (console :: CONSOLE, ph :: PHASER | e) Unit
 onServerMessage (ConfirmJoin {assignedId: id, roomGameState: gs}) = do
   log ("assigned player id: " <> show id)
+  clearPhaserState
+  lgs <- materializeState gs
+  setGameState lgs
 onServerMessage (NewPlayer {id: id}) = do
   log ("new player connected: " <> show id)
 onServerMessage (SvMoveGid {id: id, x: x, y: y}) = do
@@ -418,3 +433,52 @@ onServerMessage (SvMoveGid {id: id, x: x, y: y}) = do
 onServerMessage (ConfirmUpdates {events: events}) = do
   log ("confirmed updates: " <> show events)
   updateGameState events
+
+foreign import data ClPack :: Type
+
+type PackInfoX r =
+  { gid :: Gid
+  , cards :: Array Card
+  , lockedBy :: Maybe PlayerId
+  | r
+  }
+
+foreign import clearPhaserState :: ∀ e. Eff (ph :: PHASER | e) Unit
+
+foreign import materializeCard :: ∀ e r. { x :: Int, y :: Int, texture :: String, size :: Int, pack :: PackInfoX r } -> Eff (ph :: PHASER | e) ClPack
+
+foreign import getGameState :: ∀ e. Eff (ph :: PHASER | e) LocalGameState
+foreign import setGameState :: ∀ e. LocalGameState -> Eff (ph :: PHASER | e) Unit
+
+data LocalGameState = LocalGameState
+  { cardsByGid :: M.Map Gid ClPack
+  }
+
+materializeCard' :: Pack -> Eff _ ClPack
+materializeCard' (Pack pack) = do
+  let create texture = materializeCard { texture : texture, x : pack.position # \(Pos p) -> p.x, y : pack.position # \(Pos p) -> p.y, size : length pack.cards, pack : pack }
+  case uncons pack.cards of
+    Just { head : card, tail : _} -> do
+      create (card # cardTexture)
+    Nothing -> do
+      create "empty"
+
+materializeState :: ObfuscatedGameState -> Eff _ LocalGameState
+materializeState (SharedGameState gs) = do
+  lgs <- traverse f gs.cardsByGid
+  pure (LocalGameState {cardsByGid : lgs})
+  where
+    f pack = do
+               clPack <- materializeCard' pack
+--               pure { pack : pack, clPack : clPack }
+               pure clPack
+
+type PackProps =
+  { selected :: Boolean
+  , dragging :: Boolean
+  , overlapped :: Boolean
+  | PackInfo
+  }
+
+foreign import getProps :: ∀ e. ClPack -> Eff (ph :: PHASER | e) PackProps
+foreign import setProps :: ∀ e. PackProps -> ClPack -> Eff (ph :: PHASER | e) Unit

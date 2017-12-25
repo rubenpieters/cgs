@@ -13,6 +13,7 @@ import Data.Foreign
 import Data.Maybe
 import Data.Traversable
 import Data.Tuple
+import Data.Unfoldable
 
 import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
@@ -44,11 +45,6 @@ data FaceDir = FaceUp | FaceDown
 
 derive instance eqFaceDir :: Eq FaceDir
 derive instance genericFaceDir :: Rep.Generic FaceDir _
-{-instance encodeFaceDir :: Encode FaceDir
-  where encode = genericEncode $ DFG.defaultOptions
-instance decodeFaceDir :: Decode FaceDir
-  where decode = genericDecode $ DFG.defaultOptions
--}
 instance encodeJsonFaceDir :: EncodeJson FaceDir
   where encodeJson = genericEncodeJson
 instance decodeJsonFaceDir :: DecodeJson FaceDir
@@ -71,6 +67,12 @@ data Card = Card
   , faceDir :: FaceDir
   }
 
+mkCard :: TextureLoc -> TextureLoc -> FaceDir -> Card
+mkCard a b c = Card {textureFront : a, textureBack : b, faceDir : c}
+
+mkCardDown :: TextureLoc -> TextureLoc -> Card
+mkCardDown a b = mkCard a b FaceDown
+
 derive instance genericCard :: Rep.Generic Card _
 instance encodeJsonCard :: EncodeJson Card
   where encodeJson = genericEncodeJson
@@ -83,8 +85,6 @@ cardTexture :: Card -> TextureLoc
 cardTexture (Card c) = case c.faceDir of
   FaceUp -> c.textureFront
   FaceDown -> c.textureBack
---cardTexture c | c.faceDir == FaceUp = c.textureFront
---cardTexture c | c.faceDir == FaceDown = c.textureBack
 
 -- player global identifier
 type PlayerId = Int
@@ -107,11 +107,15 @@ instance showPosition :: Show Position
   where show = genericShow
 
 data Pack = Pack
-  { gid :: Gid
-  , cards :: Array Card
-  , position :: Position
---  , lockedBy :: Maybe PlayerId
+  { position :: Position
+  | PackInfo
   }
+
+type PackInfo =
+  ( gid :: Gid
+  , cards :: Array Card
+  , lockedBy :: Maybe PlayerId
+  )
 
 derive instance genericPack :: Rep.Generic Pack _
 
@@ -135,6 +139,17 @@ data SharedGameState = SharedGameState
 
 emptyGameState :: SharedGameState
 emptyGameState = SharedGameState {cardsByGid : M.empty}
+
+forCards :: ∀ t f a.
+--            Unfoldable t =>
+--            Traversable t =>
+            Applicative f =>
+            SharedGameState ->
+            (Int -> Pack -> f a) ->
+            f (Array a)
+forCards (SharedGameState state) f = traverse (uncurry f) tupleList
+  where
+    tupleList = M.toUnfoldable state.cardsByGid
 
 derive instance genericSharedGameState :: Rep.Generic SharedGameState _
 instance encodeJsonSharedGameState :: EncodeJson SharedGameState

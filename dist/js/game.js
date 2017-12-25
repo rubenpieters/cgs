@@ -30,31 +30,6 @@ function onMessage(message) {
   console.log("received message: " + JSON.stringify(message.data));
 
   PS.ClientMain.onServerStrMessage(message.data)();
-/*
-  var msgPayload = JSON.parse(message.data);
-  var msgType = msgPayload.type;
-  var msgData = msgPayload.data;
-  switch (msgType) {
-  case "player id":
-    console.log("assigned player id: " + msgData.id);
-    break;
-  case "new player":
-    onNewPlayer(msgData);
-    break;
-  case "remove player":
-    onRemovePlayer(msgData);
-    break;
-  case "move gid":
-    onMoveGid(msgData);
-    break;
-  case "confirm update":
-    onConfirmUpdate(msgData);
-    break;
-  default:
-    console.log("unknown message type " + msgType);
-    break;
-  }
- */
 };
 
 /*
@@ -196,7 +171,7 @@ function create() {
 
   // Cards
   cardGroup = game.add.group();
-  PS.ClientMain.phMkCard({x: 10, y: 10, pack: [PS.ClientMain.newCard]})();
+//  PS.ClientMain.phMkCard({x: 10, y: 10, pack: [PS.ClientMain.newCard]})();
 
   // Popup Menu
   popupGroup = game.add.group();
@@ -240,7 +215,7 @@ function update() {
     eventBuffer = [];
   }
 
-  PS.ClientMain.updateCards();
+  //PS.ClientMain.updateCards();
 
   updateDragTrigger();
 }
@@ -265,7 +240,7 @@ function updateDragTrigger() {
 }
 
 function cardInputDown(sprite, pointer) {
-  console.log("cardInputDown, " + sprite.pack.gid);
+  console.log("cardInputDown, " + sprite.props.gid);
 
   var leftDown = pointer.leftButton.isDown;
   var rightDown = pointer.rightButton.isDown;
@@ -274,18 +249,18 @@ function cardInputDown(sprite, pointer) {
 }
 
 function cardInputUp(sprite, pointer) {
-  console.log("cardInputUp, " + sprite.pack.gid);
-  if (typeof dragTrigger.c != 'undefined' && dragTrigger.c.pack.gid === sprite.pack.gid) {
+  console.log("cardInputUp, " + sprite.props.gid);
+  if (typeof dragTrigger.c != 'undefined' && dragTrigger.c.props.gid === sprite.props.gid) {
     if (dragTrigger.left) {
-      eventBuffer.push(new PS.SharedData.Select(sprite.pack.gid));
+      eventBuffer.push(new PS.SharedData.Select(sprite.props.gid));
     } else if (dragTrigger.right) {
       // TODO: only right-click if mouse bounds are still within card bounds?
       console.log("right click!");
-      eventBuffer.push(new PS.SharedData.Flip(sprite.pack.gid));
+      eventBuffer.push(new PS.SharedData.Flip(sprite.props.gid));
     }
   } else {
     // this branch occurs when drawing from a pack and then the newly dragged card is released
-    eventBuffer.push(new PS.SharedData.Select(dragTrigger.c.pack.gid));
+    eventBuffer.push(new PS.SharedData.Select(dragTrigger.c.props.gid));
   }
 
 

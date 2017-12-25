@@ -1,5 +1,54 @@
 "use strict";
 
+exports.clearPhaserState=function() {
+  
+};
+
+// {x :: Int, y :: Int, texture :: String, size :: Int, pack :: Pack}
+exports.materializeCard=function(o) {
+  return function() {
+    var card = game.add.sprite(o.x, o.y, o.texture);
+    card.height = cardH;
+    card.width = cardW;
+
+    card.inputEnabled = true;
+    card.events.onInputDown.add(cardInputDown, this);
+    card.events.onInputUp.add(cardInputUp, this);
+
+    var style = { font: "10px Arial", fill: "#ffffff", align: "center", stroke: "black", strokeThickness: 1};
+    var packText = game.add.text(card.x + 3, card.y + 3, o.size, style);
+    console.log("test: " + JSON.stringify(o.pack));
+    card.packText = packText;
+    card.props = {
+      selected: false,
+      dragging: false,
+      overlapped: false,
+      // copy pack info from o.pack
+      gid: o.pack.gid,
+      cards: o.pack.cards,
+      lockedBy: o.pack.lockedBy,
+    };
+
+    cardGroup.add(card);
+
+    return card;
+  };
+};
+
+exports.getProps=function(c) {
+  return function() {
+    return c.props;
+  };
+};
+
+exports.setProps=function(props) {
+  return function(c) {
+    return function() {
+      c.props = props;
+    };
+  };
+};
+
 // {x :: Int, y :: Int, pack :: Array Card}
 exports.phMkCard=function(o) {
   return function() {
@@ -110,6 +159,16 @@ exports.gameState=function() {
   return gameState;
 };
 
+exports.getGameState=function() {
+  return gameState;
+};
+
+exports.setGameState=function(gs) {
+  return function() {
+    gameState = gs;
+  };
+};
+
 exports.updateDraggedCard=function(card) {
   return function() {
     var newX = PS.ClientMain.clamp(game.input.x - (cardW / 2))({lBound: 0, uBound: playRegionX - cardW});
@@ -136,8 +195,8 @@ exports.moveCard=function(inputX) {
         var newY = PS.ClientMain.clamp(inputY)({lBound: 0, uBound: playRegionY - cardH});
         card.x = newX;
         card.y = newY;
-        card.pack.packText.x = newX + 3;
-        card.pack.packText.y = newY + 3;
+        card.packText.x = newX + 3;
+        card.packText.y = newY + 3;
       };
     };
   };
