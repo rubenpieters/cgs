@@ -224,6 +224,7 @@ data GameEvent = Select Gid
                | Flip Gid
                | Lock Gid
                | Draw Int Gid
+               | Drop Gid { x :: Int, y :: Int }
 
 derive instance genericGameEvent :: Rep.Generic GameEvent _
 instance encodeJsonGameEvent :: EncodeJson GameEvent
@@ -262,4 +263,3 @@ instance decodeClientMessage :: DecodeJson ClientMessage
   where decodeJson = genericDecodeJson
 instance showClientMessage :: Show ClientMessage
   where show = genericShow
-

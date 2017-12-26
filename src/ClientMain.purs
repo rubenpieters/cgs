@@ -205,6 +205,7 @@ updateGameState es = do
     update (Flip gid) = onCard gid flipCard
     update (Lock gid) = onCard gid lockCard
     update (Draw _ _) = unsafeThrowException (error "unimplemented")
+    update (Drop gid _) = onCard gid dropCard
 
 updateCards :: Eff _ Unit
 updateCards = do
@@ -273,7 +274,6 @@ selectCard' c = do
   d <- isDragging c
   s <- isSelected c
   selectAction c {dragging: d, selected: s}
--}
 
 selectAction :: ∀ e. PhCard -> {dragging :: Boolean, selected :: Boolean} -> Eff (ph :: PHASER | e) Unit
 selectAction c p | p.dragging = do
@@ -285,6 +285,7 @@ selectAction c p | not (p.selected) = do
   updateCardInfo c {selected: true}
   setColor c
 selectAction c p = pure unit
+-}
 
 setColor :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
 setColor c = do
@@ -330,6 +331,14 @@ lockCard c = do
   c # setProps newProps
   activateDragTrigger
   c # setTint 0xff0000
+
+dropCard :: ClPack -> Eff _ Unit
+dropCard c = do
+  props <- c # getProps
+  log ("dropping card" <> show props.gid)
+  let (newProps :: PackProps) = (props { lockedBy = Nothing, dragging = false })
+  c # setProps newProps
+  c # setTint 0xffffff
 
 onCard :: ∀ e. Gid
        -> (ClPack -> Eff (ph :: PHASER | e) Unit)

@@ -249,7 +249,8 @@ function cardInputUp(sprite, pointer) {
   console.log("cardInputUp, " + sprite.props.gid);
   if (typeof dragTrigger.c != 'undefined' && dragTrigger.c.props.gid === sprite.props.gid) {
     if (dragTrigger.left) {
-      eventBuffer.push(new PS.SharedData.Select(sprite.props.gid));
+      //eventBuffer.push(new PS.SharedData.Select(sprite.props.gid));
+      eventBuffer.push(new PS.SharedData.Drop(sprite.props.gid, { x: sprite.x, y: sprite.y }));
     } else if (dragTrigger.right) {
       // TODO: only right-click if mouse bounds are still within card bounds?
       console.log("right click!");
