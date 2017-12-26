@@ -1,12 +1,7 @@
 module SharedData where
 
-import Prelude
-
-import Data.Argonaut.Core (stringify)
-import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
-import Data.Argonaut.Decode.Generic.Rep (class DecodeLiteral, decodeLiteralSumWithTransform, genericDecodeJson)
-import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
-import Data.Argonaut.Encode.Generic.Rep (class EncodeLiteral, encodeLiteralSumWithTransform, genericEncodeJson)
+import Control.Monad.Eff.Exception
+import Data.Array
 import Data.Either
 import Data.Foldable
 import Data.Foreign
@@ -14,13 +9,18 @@ import Data.Maybe
 import Data.Traversable
 import Data.Tuple
 import Data.Unfoldable
+import Prelude
 
 import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
-import Control.Monad.Eff.Exception
+import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
 import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
 import Control.Monad.Except.Trans (runExceptT)
-import Data.Array
+import Data.Argonaut.Core (stringify)
+import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
+import Data.Argonaut.Decode.Generic.Rep (class DecodeLiteral, decodeLiteralSumWithTransform, genericDecodeJson)
+import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
+import Data.Argonaut.Encode.Generic.Rep (class EncodeLiteral, encodeLiteralSumWithTransform, genericEncodeJson)
 import Data.Foreign.Generic as DFG
 import Data.Generic.Rep as Rep
 import Data.Generic.Rep.Show (genericShow)
@@ -28,8 +28,6 @@ import Data.List.NonEmpty (NonEmptyList(..))
 import Data.Map as M
 import Data.Newtype (unwrap)
 import Data.NonEmpty ((:|))
-
-import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
 
 type Player =
   { playerId :: String
@@ -216,32 +214,51 @@ drawFromPack (Pack p) n = { remaining : remaining, drawn : drawn }
 
 
 
--- GAME EVENT
+-- CLIENT GAME EVENT
+-- client sends to server
 
-data GameEvent = Select Gid
-               | Gather
-               | Remove Gid
-               | Flip Gid
-               | Lock Gid
-               | Draw Int Gid
-               | Drop Gid { x :: Int, y :: Int }
+data ClGameEvent = ClSelect Gid
+                 | ClGather
+                 | ClRemove Gid
+                 | ClFlip Gid
+                 | ClLock Gid
+                 | ClDraw Gid { amount :: Int }
+                 | ClDrop Gid { x :: Int, y :: Int }
 
-derive instance genericGameEvent :: Rep.Generic GameEvent _
-instance encodeJsonGameEvent :: EncodeJson GameEvent
+derive instance genericClGameEvent :: Rep.Generic ClGameEvent _
+instance encodeJsonClGameEventt :: EncodeJson ClGameEvent
   where encodeJson = genericEncodeJson
-instance decodeJsonGameEvent :: DecodeJson GameEvent
+instance decodeJsonClGameEvent :: DecodeJson ClGameEvent
   where decodeJson = genericDecodeJson
-instance gameEventShow :: Show GameEvent
+instance showGameEventShow :: Show ClGameEvent
   where show = genericShow
 
+-- SERVER GAME EVENT
+-- server sends to client
+-- server adds gids where necessary
 
+data SvGameEvent = SvSelect Gid
+                 | SvGather
+                 | SvRemove Gid
+                 | SvFlip Gid
+                 | SvLock Gid
+                 | SvDraw Gid { amount :: Int, newGid :: Int }
+                 | SvDrop Gid { x :: Int, y :: Int }
+
+derive instance genericSvGameEvent :: Rep.Generic SvGameEvent _
+instance encodeJsonSvGameEvent :: EncodeJson SvGameEvent
+  where encodeJson = genericEncodeJson
+instance decodeJsonSvGameEvent :: DecodeJson SvGameEvent
+  where decodeJson = genericDecodeJson
+instance svGameEventShow :: Show SvGameEvent
+  where show = genericShow
 
 -- messages server -> client
 data ServerMessage
   = ConfirmJoin { assignedId :: Int, roomGameState :: ObfuscatedGameState }
   | NewPlayer { id :: Int }
   | SvMoveGid { id :: Int, x :: Int, y :: Int }
-  | ConfirmUpdates { events :: Array GameEvent }
+  | ConfirmUpdates { events :: Array SvGameEvent }
 
 derive instance genericServerMessage :: Rep.Generic ServerMessage _
 instance encodeJsonServerMessage :: EncodeJson ServerMessage
@@ -254,7 +271,7 @@ instance showServerMessage :: Show ServerMessage
 -- messages client -> server
 data ClientMessage
   = ClMoveGid { id :: Int, x :: Int, y :: Int }
-  | ClGameStateUpdate { events :: Array GameEvent}
+  | ClGameStateUpdate { events :: Array ClGameEvent}
 
 derive instance genericClientMessage :: Rep.Generic ClientMessage _
 instance encodeJsonClientMessage :: EncodeJson ClientMessage

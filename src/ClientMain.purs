@@ -11,7 +11,7 @@ import Data.Argonaut.Parser (jsonParser)
 import Data.Maybe
 import Data.Either
 import Data.Tuple
-import Data.Array (toUnfoldable, fromFoldable, uncons, cons)
+import Data.Array (toUnfoldable, fromFoldable, uncons, cons, take, drop)
 import Data.List hiding (null, length)
 import Data.Map as M
 import Data.Foldable
@@ -37,25 +37,10 @@ import Data.Generic.Rep.Show (genericShow)
 main :: forall e. Eff e Unit
 main = pure unit
 
-logTest :: forall e. Eff (console :: CONSOLE | e) Unit
-logTest = do
-  log "Hello sailor!"
-
 clamp :: Int -> {lBound :: Int, uBound :: Int} -> Int
 clamp x b | x > b.uBound = b.uBound
 clamp x b | x < b.lBound = b.lBound
 clamp x _ = x
-
-{-
-data DragMode = Drag | Draw
-
-derive instance eqDragMode :: Eq DragMode
-derive instance ordDragMode :: Ord DragMode
-
-nextDragMode :: DragMode -> DragMode
-nextDragMode Drag = Draw
-nextDragMode Draw = Drag
--}
 
 foreign import data PHASER :: Effect
 foreign import data PhCard :: Type
@@ -76,7 +61,7 @@ foreign import moveCard :: ∀ e. Int -> Int -> ClPack -> Eff (ph :: PHASER | e)
 foreign import setTint :: ∀ e. Int -> ClPack -> Eff (ph :: PHASER | e) Unit
 --foreign import setCardInfo :: PhCard -> CardInfo -> Eff (ph :: PHASER) Unit
 foreign import updateCardInfo :: ∀ e r. PhCard -> { | r } -> Eff (ph :: PHASER | e) Unit
-foreign import updatePackText :: ∀ e. PhCard -> String -> Eff (ph :: PHASER | e) Unit
+foreign import updatePackText :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
 
 foreign import phKill :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import phLoadTexture :: ∀ e. ClPack -> String -> Int -> Boolean -> Eff (ph :: PHASER | e) Unit
@@ -139,23 +124,8 @@ type PhaserProps =
 
 type Cid = Int
 
-showGameEvent :: GameEvent -> String
+showGameEvent :: ClGameEvent -> String
 showGameEvent = show
-
-encodeGE :: GameEvent -> String
-encodeGE = encodeJson >>> stringify
-
-decodeEither :: ∀ a. Decode a => String -> Either (NonEmptyList ForeignError) a
-decodeEither s = unwrap $ runExceptT $ decodeJSON s
-
-unsafeDecode :: ∀ e a. Decode a => String -> Eff (console :: CONSOLE | e) a
-unsafeDecode s = do
-  case (decodeEither s) of
-    (Left errList) -> unsafeThrowException (error "error decoding GameEvent")
-    (Right value) -> pure value
-
-encodeGEA :: Array GameEvent -> String
-encodeGEA = encodeJson >>> stringify
 
 type GameState =
   { cards :: M.Map Cid PhCard
@@ -188,24 +158,24 @@ cardLocked gid = do
     LockedByOther -> pure true
     NotLocked -> pure false
 
-updateGameState :: Array GameEvent -> Eff _ Unit
+updateGameState :: Array SvGameEvent -> Eff _ Unit
 updateGameState es = do
   -- handle events
   traverse_ update es
   -- update cards
 --  updateCards
   where
-    update :: GameEvent -> Eff _ Unit
+    update :: SvGameEvent -> Eff _ Unit
     --update (Select cid) = selectCard cid
     --update Gather = gatherCards
     --update (Remove cid) = removeCard cid
-    update (Select gid) = unsafeThrowException (error "unimplemented")
-    update Gather = unsafeThrowException (error "unimplemented")
-    update (Remove gid) = unsafeThrowException (error "unimplemented")
-    update (Flip gid) = onCard gid flipCard
-    update (Lock gid) = onCard gid lockCard
-    update (Draw _ _) = unsafeThrowException (error "unimplemented")
-    update (Drop gid _) = onCard gid dropCard
+    update (SvSelect gid) = unsafeThrowException (error "unimplemented")
+    update SvGather = unsafeThrowException (error "unimplemented")
+    update (SvRemove gid) = unsafeThrowException (error "unimplemented")
+    update (SvFlip gid) = onCard gid flipCard
+    update (SvLock gid) = onCard gid lockCard
+    update (SvDraw gid p) = onCard gid (drawX p)
+    update (SvDrop gid _) = onCard gid dropCard
 
 updateCards :: Eff _ Unit
 updateCards = do
@@ -215,7 +185,7 @@ updateCards = do
 updateCard :: ClPack -> Eff _ Unit
 updateCard c = do
   props <- c # getProps
-  log ("updating card " <> show props.gid)
+  --log ("updating card " <> show props.gid)
   if props.dragging
      then do
             clearOverlaps
@@ -340,6 +310,24 @@ dropCard c = do
   c # setProps newProps
   c # setTint 0xffffff
 
+drawX :: { amount :: Int, newGid :: Int } -> ClPack -> Eff _ Unit
+drawX { amount : x, newGid : newGid } c = do
+  props <- c # getProps
+  log ("drawing " <> show x <> " from " <> show props.gid)
+  let drawnCards = take x props.cards
+  let leftoverCards = drop x props.cards
+  c # setProps (props { cards= leftoverCards })
+  c # updatePackText
+  let newPackInfo = { gid: newGid, cards: drawnCards, lockedBy: Just 1}
+  newC <- materializeCard {x : 30, y : 30, texture : "empty", size : (drawnCards # length), pack : newPackInfo}
+  newProps <- newC # getProps
+  newC # setProps (newProps { dragging= true })
+  setDragTrigger newC
+  newC # setTint 0xff0000
+  (LocalGameState gs) <- getGameState
+  let updatedGs = LocalGameState ({ cardsByGid : gs.cardsByGid # M.insert newGid newC})
+  setGameState updatedGs
+
 onCard :: ∀ e. Gid
        -> (ClPack -> Eff (ph :: PHASER | e) Unit)
        -> Eff (ph :: PHASER | e) Unit
@@ -413,19 +401,6 @@ removeCard :: ∀ e. Cid -> Eff (ph :: PHASER | e) Unit
 removeCard cid = onCard cid phKill
 -}
 
-drawFromPack :: ∀ e. {x :: Int, y :: Int} -> PhCard -> Eff (ph :: PHASER | e) PhCard
-drawFromPack {x: x, y: y} c = do
-  pi <- packInfo c
-  case (uncons pi.pack) of
-    Just { head: firstCard, tail: t} -> do
-      updateCardInfo c { pack: t }
-      updatePackText c (show $ (length t :: Int))
-      newPack <- phMkCard {x: x, y:y, pack: [firstCard]}
-      updateCardInfo newPack { dragging: true }
-      pure newPack
-    Nothing -> unsafeThrowException (error "drawing from pack of size 1")
-
-
 -- server interacting code, move to new module (client/server) ?
 
 --foreign import data NETWORK :: Effect
@@ -437,7 +412,7 @@ foreign import unsafeEmit :: ∀ e. Socket -> String -> Eff (ph :: PHASER | e) U
 emit :: ∀ e msg. (EncodeJson msg) => Socket -> msg -> Eff (ph :: PHASER | e) Unit
 emit socket msgStr = unsafeEmit socket (stringify $ encodeJson msgStr)
 
-sendUpdates :: ∀ e. Socket -> Array GameEvent-> Eff (ph :: PHASER | e) Unit
+sendUpdates :: ∀ e. Socket -> Array ClGameEvent-> Eff (ph :: PHASER | e) Unit
 sendUpdates socket events = emit socket (ClGameStateUpdate { events: events })
 
 {-
@@ -540,3 +515,4 @@ foreign import getProps :: ∀ e. ClPack -> Eff (ph :: PHASER | e) PackProps
 foreign import setProps :: ∀ e. PackProps -> ClPack -> Eff (ph :: PHASER | e) Unit
 
 foreign import activateDragTrigger :: ∀ e. Eff (ph :: PHASER | e) Unit
+foreign import setDragTrigger :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit

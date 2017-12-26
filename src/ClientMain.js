@@ -53,6 +53,7 @@ exports.activateDragTrigger=function() {
   //if (dragTrigger.c.pack.dragMode === "drag") {
     dragTrigger.c.props.dragging = true;
     dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: dragTrigger.c };
+    dragTriggerText.text = "dragging";
     console.log("drag");
   /*} else {
     var newCard = PS.ClientMain.drawFromPack({x: dragTrigger.c.x, y: dragTrigger.c.y})(dragTrigger.c)();
@@ -60,6 +61,21 @@ exports.activateDragTrigger=function() {
     console.log("draw");
   }*/
 }
+
+exports.setDragTrigger=function(c) {
+  return function() {
+    //if (dragTrigger.c.pack.dragMode === "drag") {
+      c.props.dragging = true;
+      dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: c };
+      dragTriggerText.text = "dragging";
+      console.log("drag");
+    /*} else {
+      var newCard = PS.ClientMain.drawFromPack({x: dragTrigger.c.x, y: dragTrigger.c.y})(dragTrigger.c)();
+      dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: newCard };
+      console.log("draw");
+    }*/
+  };
+};
 
 // {x :: Int, y :: Int, pack :: Array Card}
 exports.phMkCard=function(o) {
@@ -242,10 +258,8 @@ exports.phLoadTexture=function(o) {
 };
 
 exports.updatePackText=function(c) {
-  return function(text) {
-    return function() {
-      c.pack.packText.setText(text);
-    };
+  return function() {
+    c.packText.setText(c.props.cards.length);
   };
 };
 

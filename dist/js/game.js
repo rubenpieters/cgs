@@ -123,6 +123,10 @@ var gameState = PS.ClientMain.emptyGS;
 var eventBuffer = [];
 
 var dragTrigger = { status: 'none' };
+var dragTriggerText;
+
+var drawAmount = { amount: 1 };
+var drawAmountText;
 
 function preload() {
   game.load.image('card', 'assets/card.png');
@@ -155,6 +159,12 @@ function create() {
   cardDragProp.visible = false;
   cardDragPropText = game.add.text(102, playRegionY + 15, "", style);
   cardDragPropText.visible = false;
+
+  // - bottom - drag trigger value
+  dragTriggerText = game.add.text(12, playRegionY + 75, dragTrigger.status, style);
+
+  // - bottom - left mode text
+  drawAmountText = game.add.text(72, playRegionY + 75, drawAmount.amount, style);
 
   // - right
   bottomMenu = game.add.sprite(playRegionX, 0, 'menu');
@@ -201,7 +211,20 @@ function create() {
   // Key - K - disconnect from server
   var keyK = game.input.keyboard.addKey(Phaser.Keyboard.K);
   keyK.onDown.add(disconnectFromServer);
+
+  // Key - B - cycle left mode
+  var keyB = game.input.keyboard.addKey(Phaser.Keyboard.B);
+  keyB.onDown.add(cycleDraw);
 }
+
+function cycleDraw() {
+  if (drawAmount.amount === 1) {
+    drawAmount.amount = 10;
+  } else if (drawAmount.amount === 10) {
+    drawAmount.amount = 1;
+  }
+  drawAmountText.text = drawAmount.amount;
+};
 
 function update() {
   if (eventBuffer.length > 0) {
@@ -225,12 +248,23 @@ function render() {
 }
 
 function updateDragTrigger() {
-  if (dragTrigger.status != "none" && dragTrigger.status != "dragging" && dragTrigger.left) {
-    if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
-      if (PS.ClientMain.cardLocked(dragTrigger.c.props.gid)()) {
-        // noop
+  if (dragTrigger.status != "none" && dragTrigger.status != "dragging" && dragTrigger.status != "waiting" && dragTrigger.left) {
+    //if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
+    //}
+    if (PS.ClientMain.cardLocked(dragTrigger.c.props.gid)()) {
+      // pack is locked: noop
+    } else {
+      // pack is not locked: can draw
+      if (dragTrigger.c.props.cards.length <= drawAmount.amount) {
+        // drawing complete pack = dragging
+        eventBuffer.push(new PS.SharedData.ClLock(dragTrigger.c.props.gid));
+        dragTrigger.status = "waiting";
+        dragTriggerText.text = "waiting";
       } else {
-        eventBuffer.push(new PS.SharedData.Lock(dragTrigger.c.props.gid));
+        // draw `amount` from pack
+        eventBuffer.push(new PS.SharedData.ClDraw(dragTrigger.c.props.gid, { amount: drawAmount.amount }))
+        dragTrigger.status = "waiting";
+        dragTriggerText.text = "waiting";
       }
     }
   }
@@ -250,17 +284,19 @@ function cardInputUp(sprite, pointer) {
   if (typeof dragTrigger.c != 'undefined' && dragTrigger.c.props.gid === sprite.props.gid) {
     if (dragTrigger.left) {
       //eventBuffer.push(new PS.SharedData.Select(sprite.props.gid));
-      eventBuffer.push(new PS.SharedData.Drop(sprite.props.gid, { x: sprite.x, y: sprite.y }));
+      eventBuffer.push(new PS.SharedData.ClDrop(sprite.props.gid, { x: sprite.x, y: sprite.y }));
     } else if (dragTrigger.right) {
       // TODO: only right-click if mouse bounds are still within card bounds?
       console.log("right click!");
-      eventBuffer.push(new PS.SharedData.Flip(sprite.props.gid));
+      eventBuffer.push(new PS.SharedData.ClFlip(sprite.props.gid));
     }
   } else {
     // this branch occurs when drawing from a pack and then the newly dragged card is released
-    eventBuffer.push(new PS.SharedData.Select(dragTrigger.c.props.gid));
+    console.log("sending cldrop after draw");
+    eventBuffer.push(new PS.SharedData.ClDrop(dragTrigger.c.props.gid, { x: dragTrigger.c.x, y: dragTrigger.c.y }));
   }
 
 
   dragTrigger = { status: "none" };
+  dragTriggerText.text = "none";
 }

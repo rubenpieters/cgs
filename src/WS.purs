@@ -182,7 +182,17 @@ onClientMessage server client clientId (ClMoveGid {id: playerId, x: x, y: y}) = 
   broadcast server (SvMoveGid {id :playerId, x: x, y: y}) client
 onClientMessage server client clientId (ClGameStateUpdate {events: events}) = do
   log ("events: " <> show events)
-  sendMessage client (ConfirmUpdates {events: events})
+  confirmedEvents <- traverse confirmEvent events
+  sendMessage client (ConfirmUpdates {events: confirmedEvents})
+
+confirmEvent :: ClGameEvent -> Eff _ SvGameEvent
+confirmEvent (ClSelect gid) = pure $ SvSelect gid
+confirmEvent (ClGather) = pure $ SvGather
+confirmEvent (ClRemove gid) = pure $ SvRemove gid
+confirmEvent (ClFlip gid) = pure $ SvFlip gid
+confirmEvent (ClLock gid) = pure $ SvLock gid
+confirmEvent (ClDraw gid { amount : amount }) = pure $ SvDraw gid { amount, newGid : 1}
+confirmEvent (ClDrop gid pos) = pure $ SvDrop gid pos
 
 onDisconnect :: ∀ e. Int -> Eff (console :: CONSOLE, ws :: WS | e) Unit
 onDisconnect toRemoveId = do
