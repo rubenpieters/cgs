@@ -224,6 +224,7 @@ data ClGameEvent = ClSelect Gid
                  | ClLock Gid
                  | ClDraw Gid { amount :: Int }
                  | ClDrop Gid { x :: Int, y :: Int }
+                 | ClDropIn Gid { tgt :: Gid }
 
 derive instance genericClGameEvent :: Rep.Generic ClGameEvent _
 instance encodeJsonClGameEventt :: EncodeJson ClGameEvent
@@ -244,6 +245,7 @@ data SvGameEvent = SvSelect Gid
                  | SvLock Gid
                  | SvDraw Gid { amount :: Int, newGid :: Int }
                  | SvDrop Gid { x :: Int, y :: Int }
+                 | SvDropIn Gid { tgt :: Gid }
 
 derive instance genericSvGameEvent :: Rep.Generic SvGameEvent _
 instance encodeJsonSvGameEvent :: EncodeJson SvGameEvent

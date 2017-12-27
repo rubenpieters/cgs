@@ -176,6 +176,7 @@ updateGameState es = do
     update (SvLock gid) = onCard gid lockCard
     update (SvDraw gid p) = onCard gid (drawX p)
     update (SvDrop gid _) = onCard gid dropCard
+    update (SvDropIn drp { tgt: pk }) = onCard2 pk drp dropInCard
 
 updateCards :: Eff _ Unit
 updateCards = do
@@ -203,12 +204,14 @@ updateCard c = do
                 props <- overlap # getProps
                 overlap # setProps (props { overlapped= true })
                 overlap # setTint 0x55ff55
+                setOverlapCard overlap
               Nothing -> pure unit
      else pure unit
 
 clearOverlaps :: Eff _ Unit
 clearOverlaps = do
   (LocalGameState gs) <- getGameState
+  clearOverlapCard
   traverse_ clearOverlap gs.cardsByGid
   where
     clearOverlap :: ClPack -> Eff _ Unit
@@ -309,6 +312,17 @@ dropCard c = do
   c # setProps newProps
   c # setTint 0xffffff
 
+dropInCard :: ClPack -> ClPack -> Eff _ Unit
+dropInCard pk drp = do
+  pkProps <- pk # getProps
+  drpProps <- drp # getProps
+  let (newPkProps :: PackProps) = (pkProps { cards = pkProps.cards <> drpProps.cards })
+  phKill drp
+  pk # setProps newPkProps
+  pk # updatePackText
+  -- do something extra if src had 0 cards?
+  pure unit
+
 drawX :: { amount :: Int, newGid :: Int } -> ClPack -> Eff _ Unit
 drawX { amount : x, newGid : newGid } c = do
   props <- c # getProps
@@ -335,6 +349,19 @@ onCard gid f = do
   let (mc :: Maybe ClPack) = M.lookup gid gs.cardsByGid
   case mc of
     Just (c :: ClPack) -> f c
+    Nothing -> pure unit
+
+onCard2 :: ∀ e. Gid -> Gid
+       -> (ClPack -> ClPack -> Eff (ph :: PHASER | e) Unit)
+       -> Eff (ph :: PHASER | e) Unit
+onCard2 gid1 gid2 f = do
+  (LocalGameState gs) <- getGameState
+  let (mc1 :: Maybe ClPack) = M.lookup gid1 gs.cardsByGid
+  let (mc2 :: Maybe ClPack) = M.lookup gid2 gs.cardsByGid
+  case mc1 of
+    Just (c1 :: ClPack) -> case mc2 of
+      Just (c2 :: ClPack) -> f c1 c2
+      Nothing -> pure unit
     Nothing -> pure unit
 
 onCard' :: ∀ a e. Gid
@@ -512,6 +539,10 @@ type PackProps =
 
 foreign import getProps :: ∀ e. ClPack -> Eff (ph :: PHASER | e) PackProps
 foreign import setProps :: ∀ e. PackProps -> ClPack -> Eff (ph :: PHASER | e) Unit
+
+foreign import getOverlapCard :: ∀ e. Eff (ph :: PHASER | e) ClPack
+foreign import clearOverlapCard :: ∀ e. Eff (ph :: PHASER | e) Unit
+foreign import setOverlapCard :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
 
 foreign import activateDragTrigger :: ∀ e. Eff (ph :: PHASER | e) Unit
 foreign import setDragTrigger :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit

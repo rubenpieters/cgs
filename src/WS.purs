@@ -193,6 +193,7 @@ confirmEvent (ClFlip gid) = pure $ SvFlip gid
 confirmEvent (ClLock gid) = pure $ SvLock gid
 confirmEvent (ClDraw gid { amount : amount }) = pure $ SvDraw gid { amount, newGid : 1}
 confirmEvent (ClDrop gid pos) = pure $ SvDrop gid pos
+confirmEvent (ClDropIn gid x) = pure $ SvDropIn gid x
 
 onDisconnect :: ∀ e. Int -> Eff (console :: CONSOLE, ws :: WS | e) Unit
 onDisconnect toRemoveId = do

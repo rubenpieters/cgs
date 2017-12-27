@@ -197,6 +197,20 @@ exports.setGameState=function(gs) {
   };
 };
 
+exports.getOverlapCard=function() {
+  return overlapCard;
+};
+
+exports.clearOverlapCard=function() {
+  overlapCard = undefined;
+};
+
+exports.setOverlapCard=function(c) {
+  return function() {
+    overlapCard = c;
+  };
+};
+
 exports.updateDraggedCard=function(card) {
   return function() {
     var newX = PS.ClientMain.clamp(game.input.x - (cardW / 2))({lBound: 0, uBound: playRegionX - cardW});

@@ -283,8 +283,8 @@ function cardInputUp(sprite, pointer) {
   console.log("cardInputUp, " + sprite.props.gid);
   if (typeof dragTrigger.c != 'undefined' && dragTrigger.c.props.gid === sprite.props.gid) {
     if (dragTrigger.left) {
-      //eventBuffer.push(new PS.SharedData.Select(sprite.props.gid));
-      eventBuffer.push(new PS.SharedData.ClDrop(sprite.props.gid, { x: sprite.x, y: sprite.y }));
+      //eventBuffer.push(new PS.SharedData.ClDrop(sprite.props.gid, { x: sprite.x, y: sprite.y }));
+      dropCard(sprite);
     } else if (dragTrigger.right) {
       // TODO: only right-click if mouse bounds are still within card bounds?
       console.log("right click!");
@@ -293,10 +293,17 @@ function cardInputUp(sprite, pointer) {
   } else {
     // this branch occurs when drawing from a pack and then the newly dragged card is released
     console.log("sending cldrop after draw");
-    eventBuffer.push(new PS.SharedData.ClDrop(dragTrigger.c.props.gid, { x: dragTrigger.c.x, y: dragTrigger.c.y }));
+    dropCard(dragTrigger.c);
   }
-
 
   dragTrigger = { status: "none" };
   dragTriggerText.text = "none";
 }
+
+function dropCard(c) {
+  if (typeof overlapCard === 'undefined') {
+    eventBuffer.push(new PS.SharedData.ClDrop(c.props.gid, { x: c.x, y: c.y }));
+  } else {
+    eventBuffer.push(new PS.SharedData.ClDropIn(c.props.gid, { tgt: overlapCard.props.gid }));
+  }
+};
