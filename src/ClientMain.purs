@@ -53,7 +53,7 @@ foreign import phaserProps :: ∀ e. ClPack -> Eff (ph :: PHASER | e) PhaserProp
 foreign import toggleSelected :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
 foreign import showCardSelectMenu :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
 foreign import hideCardSelectMenu :: ∀ e. Eff (ph :: PHASER | e) Unit
-foreign import checkOverlap :: PhCard -> PhCard -> Boolean
+foreign import checkOverlap :: ClPack -> ClPack -> Boolean
 foreign import gameState :: ∀ e. Eff (ph :: PHASER | e) GameState
 foreign import updateDraggedCard :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import isConnected :: ∀ e. Eff (ph :: PHASER | e) Boolean
@@ -197,13 +197,13 @@ updateCard c = do
                     phProps <- c # phaserProps
                     socket `emit` (ClMoveGid {id: props.gid, x: phProps.x, y: phProps.y})
                else pure unit
-            {-mOverlap <- findFirstOverlapCard c
+            mOverlap <- findFirstOverlapCard c
             case mOverlap of
               Just overlap -> do
-                updateCardInfo overlap { overlapped: true }
-                --setTint 0xff0000 overlap
+                props <- overlap # getProps
+                overlap # setProps (props { overlapped= true })
+                overlap # setTint 0x55ff55
               Nothing -> pure unit
-              -}
      else pure unit
 
 clearOverlaps :: Eff _ Unit
@@ -216,18 +216,18 @@ clearOverlaps = do
       props <- c # getProps
       let newProps = props { overlapped = false }
       c # setProps newProps
-      --setColor c
+      c # setColor
 
-findFirstOverlapCard :: ∀ e. PhCard -> Eff (ph :: PHASER | e) (Maybe PhCard)
+findFirstOverlapCard :: ClPack -> Eff _ (Maybe ClPack)
 findFirstOverlapCard c = do
-  xp <- packInfo c
-  gs <- gameState
-  let cards = M.values gs.cards
-  p1 <- traverse packInfo cards
-  let (dropped :: List PhCard) = snd <$> dropWhile (\x -> overlapCondition x (Tuple xp c)) (zip p1 cards)
+  props <- c # getProps
+  (LocalGameState gs) <- getGameState
+  let cards = M.values gs.cardsByGid
+  p1 <- traverse getProps cards
+  let (dropped :: List ClPack) = snd <$> dropWhile (\x -> overlapCondition x (Tuple props c)) (zip p1 cards)
   pure $ head dropped
   where
-    overlapCondition :: Tuple Packx PhCard -> Tuple Packx PhCard -> Boolean
+    overlapCondition :: forall r. Tuple {gid :: Gid | r} ClPack -> Tuple {gid :: Gid | r} ClPack -> Boolean
     overlapCondition (Tuple p1 _) (Tuple p2 _) | p1.gid == p2.gid = true
     overlapCondition (Tuple _ c1) (Tuple _ c2) | checkOverlap c1 c2 = false
     overlapCondition _ _ = true
@@ -257,14 +257,13 @@ selectAction c p | not (p.selected) = do
 selectAction c p = pure unit
 -}
 
-setColor :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
+setColor :: ClPack -> Eff _ Unit
 setColor c = do
-  pi <- packInfo c
-  pure unit
-  --setTint c (packTint pi)
+  props <- c # getProps
+  c # setTint (packTint props)
 
-packTint :: Packx -> Int
-packTint p | p.selected = 0x00ff00
+packTint :: PackProps -> Int
+packTint p | p.dragging = 0xff0000
 packTint p = 0xffffff
 
 {-
