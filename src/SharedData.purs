@@ -29,6 +29,8 @@ import Data.Map as M
 import Data.Newtype (unwrap)
 import Data.NonEmpty ((:|))
 
+import Control.Monad.Eff.Ref
+
 type Player =
   { playerId :: String
   , displayName :: String
@@ -282,3 +284,7 @@ instance decodeClientMessage :: DecodeJson ClientMessage
   where decodeJson = genericDecodeJson
 instance showClientMessage :: Show ClientMessage
   where show = genericShow
+
+
+setRef :: forall s r. Ref s -> s -> Eff (ref :: REF | r) Unit
+setRef ref s = modifyRef ref (const s)

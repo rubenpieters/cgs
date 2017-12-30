@@ -19,13 +19,10 @@ import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console
 import Control.Monad.Eff.Ref
 
-foreign import initServerState :: ∀ e. Eff (ws :: WS | e) RoomState
-foreign import getServerState :: ∀ e. Eff (ws :: WS | e) RoomState
-foreign import setServerState :: ∀ e. RoomState -> Eff (ws :: WS | e) Unit
-
 type RoomState =
   { players :: Array Player
   , gameState :: SharedGameState
+  , playerIdCounter :: Int
   }
 
 emptyRoomState :: RoomState
@@ -35,6 +32,7 @@ initialRoomState :: SharedGameState -> RoomState
 initialRoomState gs =
   { players : []
   , gameState : gs
+  , playerIdCounter : 0
   }
 
 pgGameState :: SharedGameState
@@ -60,11 +58,10 @@ type Player =
 startServer :: Eff _ Unit
 startServer = do
   log "Server started"
--- TODO: manage serverState with IORef or similar?
-  setServerState (initialRoomState pgGameState)
+  rsRef <- newRef (initialRoomState pgGameState)
   wss <- mkServer { port : 8080 }
   -- handler when player connects
-  (wss `on` SvConnection) (mkImpureFn1 $ onSocketConnection wss)
+  (wss `on` SvConnection) (mkImpureFn1 $ onSocketConnection rsRef wss)
   pure unit
 
 foreign import data WS :: Effect
@@ -136,35 +133,33 @@ instance clCloseListener :: WsListener (Client smsg cmsg) ClClose (Unit -> Unit)
 unsafeOn :: ∀ o f e msg. (WsEvent msg) => o -> msg -> Impure f -> Eff (ws :: WS | e) Unit
 unsafeOn obj msg f = unsafeForeignProcedure ["obj", "event", "cb", ""] "obj.on(event, cb);" obj (eventStr msg) f
 
-onSocketConnection :: ∀ e.
+onSocketConnection :: Ref RoomState ->
                       (Server ClientMessage ServerMessage) ->
                       (Client ServerMessage ClientMessage) ->
-                      Eff (console :: CONSOLE, ws :: WS | e) Unit
-onSocketConnection server client = do
-  -- TODO: generate unique id
-  let clientId = 1
+                      Eff _ Unit
+onSocketConnection rsRef server client = do
+  -- read roomState
+  roomState <- readRef rsRef
+  let clientId = roomState.playerIdCounter + 1
   log ("New player has connected: " <> show clientId)
   -- set event handlers
   (client `on` ClMessage) (mkImpureFn1 (onMessage server client clientId))
-  (client `on` ClClose) (mkImpureFn1 (\_ -> onDisconnect clientId))
-  -- read room state
-  roomState <- getServerState
+  (client `on` ClClose) (mkImpureFn1 (\_ -> onDisconnect rsRef clientId))
   -- send id to client
-  -- TODO: put actual gamestate
   sendMessage client (ConfirmJoin { assignedId : clientId, roomGameState : roomState.gameState })
   -- update other players
   broadcast server (NewPlayer { id : clientId }) client
-
   -- send all players to new player
   -- TODO: batch into one message?
   for_ roomState.players (\player -> sendMessage client (NewPlayer { id : player.id }))
   -- update player list
-  setServerState (roomState {players = {id : clientId} : roomState.players})
+  setRef rsRef (roomState {players = {id : clientId} : roomState.players, playerIdCounter = clientId})
 
-onMessage :: ∀ e.
-             (Server ClientMessage ServerMessage) ->
+onMessage :: (Server ClientMessage ServerMessage) ->
              (Client ServerMessage ClientMessage) ->
-             Int -> String -> Eff (console :: CONSOLE, ws :: WS | e) Unit
+             Int ->
+             String ->
+             Eff _ Unit
 onMessage server client id message = do
   log ("received message " <> message)
   let eSvMsg = jsonParser message >>= decodeJson
@@ -172,10 +167,11 @@ onMessage server client id message = do
     Left errs -> log ("malformed message")
     Right (clMsg :: ClientMessage) -> onClientMessage server client id clMsg
 
-onClientMessage :: ∀ e.
-                   (Server ClientMessage ServerMessage) ->
+onClientMessage :: (Server ClientMessage ServerMessage) ->
                    (Client ServerMessage ClientMessage) ->
-                   Int -> ClientMessage -> Eff (console :: CONSOLE, ws :: WS | e) Unit
+                   Int ->
+                   ClientMessage ->
+                   Eff _ Unit
 onClientMessage server client clientId (ClMoveGid {id: playerId, x: x, y: y}) = do
   -- check if client id == player id?
   log ("player " <> show playerId <> " moving gid, x:" <> show x <> ", y: " <> show y)
@@ -195,13 +191,15 @@ confirmEvent (ClDraw gid { amount : amount }) = pure $ SvDraw gid { amount, newG
 confirmEvent (ClDrop gid pos) = pure $ SvDrop gid pos
 confirmEvent (ClDropIn gid x) = pure $ SvDropIn gid x
 
-onDisconnect :: ∀ e. Int -> Eff (console :: CONSOLE, ws :: WS | e) Unit
-onDisconnect toRemoveId = do
+onDisconnect :: Ref RoomState ->
+                Int ->
+                Eff _ Unit
+onDisconnect rsRef toRemoveId = do
   -- find player to remove
   log ("removing player")
-  roomState <- getServerState
+  roomState <- readRef rsRef
   let (newPlayers :: Array Player) = filter (\p -> p.id /= toRemoveId) roomState.players
-  setServerState (roomState {players = newPlayers})
+  setRef rsRef (roomState {players = newPlayers})
 
 -- TODO: use purescript-foreign-callbacks? (needs to be updated first)
 

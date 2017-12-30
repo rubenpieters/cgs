@@ -34,19 +34,3 @@ exports.unsafeBroadcast = function(server) {
     };
   };
 };
-
-var serverState;
-
-exports.initServerState = function() {
-  serverState = [];
-};
-
-exports.getServerState = function() {
-  return serverState;
-};
-
-exports.setServerState = function(update) {
-  return function() {
-    serverState = update;
-  };
-};
