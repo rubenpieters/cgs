@@ -23,6 +23,7 @@ type RoomState =
   { players :: Array Player
   , gameState :: SharedGameState
   , playerIdCounter :: Int
+  , gidCounter :: Int
   }
 
 emptyRoomState :: RoomState
@@ -33,6 +34,7 @@ initialRoomState gs =
   { players : []
   , gameState : gs
   , playerIdCounter : 0
+  , gidCounter : 0
   }
 
 pgGameState :: SharedGameState
@@ -143,7 +145,7 @@ onSocketConnection rsRef server client = do
   let clientId = roomState.playerIdCounter + 1
   log ("New player has connected: " <> show clientId)
   -- set event handlers
-  (client `on` ClMessage) (mkImpureFn1 (onMessage server client clientId))
+  (client `on` ClMessage) (mkImpureFn1 (onMessage rsRef server client clientId))
   (client `on` ClClose) (mkImpureFn1 (\_ -> onDisconnect rsRef clientId))
   -- send id to client
   sendMessage client (ConfirmJoin { assignedId : clientId, roomGameState : roomState.gameState })
@@ -155,41 +157,49 @@ onSocketConnection rsRef server client = do
   -- update player list
   setRef rsRef (roomState {players = {id : clientId} : roomState.players, playerIdCounter = clientId})
 
-onMessage :: (Server ClientMessage ServerMessage) ->
+onMessage :: Ref RoomState ->
+             (Server ClientMessage ServerMessage) ->
              (Client ServerMessage ClientMessage) ->
              Int ->
              String ->
              Eff _ Unit
-onMessage server client id message = do
+onMessage rsRef server client id message = do
   log ("received message " <> message)
   let eSvMsg = jsonParser message >>= decodeJson
   case eSvMsg of
     Left errs -> log ("malformed message")
-    Right (clMsg :: ClientMessage) -> onClientMessage server client id clMsg
+    Right (clMsg :: ClientMessage) -> onClientMessage rsRef server client id clMsg
 
-onClientMessage :: (Server ClientMessage ServerMessage) ->
+onClientMessage :: Ref RoomState ->
+                   (Server ClientMessage ServerMessage) ->
                    (Client ServerMessage ClientMessage) ->
                    Int ->
                    ClientMessage ->
                    Eff _ Unit
-onClientMessage server client clientId (ClMoveGid {id: playerId, x: x, y: y}) = do
+onClientMessage rsRef server client clientId (ClMoveGid {id: playerId, x: x, y: y}) = do
   -- check if client id == player id?
   log ("player " <> show playerId <> " moving gid, x:" <> show x <> ", y: " <> show y)
   broadcast server (SvMoveGid {id :playerId, x: x, y: y}) client
-onClientMessage server client clientId (ClGameStateUpdate {events: events}) = do
+onClientMessage rsRef server client clientId (ClGameStateUpdate {events: events}) = do
   log ("events: " <> show events)
-  confirmedEvents <- traverse confirmEvent events
+  confirmedEvents <- traverse (confirmEvent rsRef) events
   sendMessage client (ConfirmUpdates {events: confirmedEvents})
 
-confirmEvent :: ClGameEvent -> Eff _ SvGameEvent
-confirmEvent (ClSelect gid) = pure $ SvSelect gid
-confirmEvent (ClGather) = pure $ SvGather
-confirmEvent (ClRemove gid) = pure $ SvRemove gid
-confirmEvent (ClFlip gid) = pure $ SvFlip gid
-confirmEvent (ClLock gid) = pure $ SvLock gid
-confirmEvent (ClDraw gid { amount : amount }) = pure $ SvDraw gid { amount, newGid : 1}
-confirmEvent (ClDrop gid pos) = pure $ SvDrop gid pos
-confirmEvent (ClDropIn gid x) = pure $ SvDropIn gid x
+confirmEvent :: Ref RoomState ->
+                ClGameEvent ->
+                Eff _ SvGameEvent
+confirmEvent rsRef (ClSelect gid) = pure $ SvSelect gid
+confirmEvent rsRef (ClGather) = pure $ SvGather
+confirmEvent rsRef (ClRemove gid) = pure $ SvRemove gid
+confirmEvent rsRef (ClFlip gid) = pure $ SvFlip gid
+confirmEvent rsRef (ClLock gid) = pure $ SvLock gid
+confirmEvent rsRef (ClDraw gid { amount : amount }) = do
+  rs <- readRef rsRef
+  let newGid = rs.gidCounter + 1
+  setRef rsRef (rs {gidCounter = newGid})
+  pure $ SvDraw gid { amount, newGid : newGid}
+confirmEvent rsRef (ClDrop gid pos) = pure $ SvDrop gid pos
+confirmEvent rsRef (ClDropIn gid x) = pure $ SvDropIn gid x
 
 onDisconnect :: Ref RoomState ->
                 Int ->
