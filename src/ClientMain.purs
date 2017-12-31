@@ -47,8 +47,6 @@ foreign import data PhCard :: Type
 
 foreign import phMkCard :: ∀ e. {x :: Int, y :: Int, pack :: Array Card}
                         -> Eff (ph :: PHASER | e) PhCard
---foreign import cardInfo :: PhCard -> CardInfo
-foreign import packInfo :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Packx
 foreign import phaserProps :: ∀ e. ClPack -> Eff (ph :: PHASER | e) PhaserProps
 foreign import toggleSelected :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
 foreign import showCardSelectMenu :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
@@ -59,22 +57,11 @@ foreign import updateDraggedCard :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import isConnected :: ∀ e. Eff (ph :: PHASER | e) Boolean
 foreign import moveCard :: ∀ e. Int -> Int -> ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import setTint :: ∀ e. Int -> ClPack -> Eff (ph :: PHASER | e) Unit
---foreign import setCardInfo :: PhCard -> CardInfo -> Eff (ph :: PHASER) Unit
 foreign import updateCardInfo :: ∀ e r. PhCard -> { | r } -> Eff (ph :: PHASER | e) Unit
 foreign import updatePackText :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
 
 foreign import phKill :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import phLoadTexture :: ∀ e. ClPack -> String -> Int -> Boolean -> Eff (ph :: PHASER | e) Unit
-
-{-
-updateCardSelectMenu :: ∀ e. Eff (ph :: PHASER | e) Unit
-updateCardSelectMenu = do
-  gs <- getGameState
-  sm <- selectMode gs
-  case sm of
-    (Single c) -> showCardSelectMenu c
-    Other -> hideCardSelectMenu
--}
 
 data SelectMode = Single ClPack | Other
 
@@ -96,26 +83,6 @@ isDragging :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Boolean
 isDragging c = do
   props <- c # getProps
   pure props.dragging
-
-type Packx =
-  { pack :: Array Card
-  , packText :: String
-  , gid :: Int
-  , selected :: Boolean
-  , dragging :: Boolean
-  , overlapped :: Boolean
-  }
-
-{-
-type Card =
-  { texture :: String
-  , textureBack :: String
-  , faceDir :: FaceDir
-  }
--}
-
---newCard :: Card
---newCard = { texture: "card", textureBack: "empty", faceDir: FaceUp }
 
 type PhaserProps =
   { x :: Int
@@ -235,31 +202,6 @@ findFirstOverlapCard c = do
     overlapCondition (Tuple _ c1) (Tuple _ c2) | checkOverlap c1 c2 = false
     overlapCondition _ _ = true
 
-{-
-selectCard :: ∀ e. Cid -> Eff (ph :: PHASER | e) Unit
-selectCard cid = do
-  onCard cid selectCard'
-  --onCard cid toggleSelected
-  updateCardSelectMenu
-
-selectCard' :: ∀ e. PhCard -> Eff (ph :: PHASER | e) Unit
-selectCard' c = do
-  d <- isDragging c
-  s <- isSelected c
-  selectAction c {dragging: d, selected: s}
-
-selectAction :: ∀ e. PhCard -> {dragging :: Boolean, selected :: Boolean} -> Eff (ph :: PHASER | e) Unit
-selectAction c p | p.dragging = do
-  updateCardInfo c { dragging: false}
-selectAction c p | p.selected = do
-  updateCardInfo c {selected: false}
-  setColor c
-selectAction c p | not (p.selected) = do
-  updateCardInfo c {selected: true}
-  setColor c
-selectAction c p = pure unit
--}
-
 setColor :: ClPack -> Eff _ Unit
 setColor c = do
   props <- c # getProps
@@ -268,14 +210,6 @@ setColor c = do
 packTint :: PackProps -> Int
 packTint p | p.dragging = 0xff0000
 packTint p = 0xffffff
-
-{-
-toggleSelectProps :: Packx -> {dragging :: Boolean, selected :: Boolean, tint :: String}
-toggleSelectProps p | p.dragging = { dragging: false, selected: p.selected, tint: "" }
-toggleSelectProps p | p.selected = { selected: false }
-toggleSelectProps p | not p.selected = { selected: true }
-toggleSelectedProps p = p
--}
 
 flipCard :: ClPack -> Eff _ Unit
 flipCard c = do
@@ -374,18 +308,6 @@ onCard' gid f = do
     Just (c :: ClPack) -> f c
     Nothing -> unsafeThrowException (error ("card " <> show gid <> " does not exist"))
 
-{-addNewCard :: GameState -> Eff (ph :: PHASER) GameState
-addNewCard gs =
-  do
-    c <- phMkCard { x: 1, y: 1, pack: [{texture: "card"}]}
-    pure $ addCard c gs
--}
-
-addCard :: ∀ e. PhCard -> GameState -> Eff (ph :: PHASER | e) GameState
-addCard c gs = do
-  pi <- packInfo c
-  pure gs { cards = M.insert pi.gid c gs.cards }
-
 -- TODO: keep track of killed cards, so they can be revived
 removeCardGS :: ∀ e. ClPack -> LocalGameState -> Eff (ph :: PHASER | e) LocalGameState
 removeCardGS c (LocalGameState gs) = do
@@ -422,11 +344,6 @@ arrayToList = toUnfoldable
 listToArray :: ∀ a. List a -> Array a
 listToArray = fromFoldable
 
-{-
-removeCard :: ∀ e. Cid -> Eff (ph :: PHASER | e) Unit
-removeCard cid = onCard cid phKill
--}
-
 -- server interacting code, move to new module (client/server) ?
 
 --foreign import data NETWORK :: Effect
@@ -440,30 +357,6 @@ emit socket msgStr = unsafeEmit socket (stringify $ encodeJson msgStr)
 
 sendUpdates :: ∀ e. Socket -> Array ClGameEvent-> Eff (ph :: PHASER | e) Unit
 sendUpdates socket events = emit socket (ClGameStateUpdate { events: events })
-
-{-
-data NetworkMsg
-  = NewPlayer {}
-  | RemovePlayer {}
-  | MoveGid { gid :: Int, x :: Int, y :: Int}
-
-  clients send this message to notify the server that they want to update the shared gamestate
-
-  | GameStateUpdate { events :: Array GameEvent}
-
-networkMsgString :: NetworkMsg -> String
-networkMsgString (NewPlayer _) = "new player"
-networkMsgString (RemovePlayer _) = "remove player"
-networkMsgString (MoveGid _) = "move gid"
-networkMsgString (GameStateUpdate _) = "gamestate update"
-
-
-emit :: ∀ e. Socket -> NetworkMsg -> Eff (network :: NETWORK | e) Unit
-emit socket msg@(NewPlayer d) = unsafeEmit socket (networkMsgString msg) d
-emit socket msg@(RemovePlayer d) = unsafeEmit socket (networkMsgString msg) d
-emit socket msg@(MoveGid d) = unsafeEmit socket (networkMsgString msg) d
-emit socket msg@(GameStateUpdate d) = unsafeEmit socket (networkMsgString msg) d
--}
 
 -- client on server message
 

@@ -118,12 +118,6 @@ exports.phMkCard=function(o) {
   };
 };
 
-exports.packInfo=function(card) {
-  return function() {
-    return card.pack;
-  };
-};
-
 exports.toggleSelected=function(card) {
   return function() {
     card.pack.selected = ! card.pack.selected;
