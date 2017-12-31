@@ -253,7 +253,9 @@ dropInCard pk drp = do
   pkProps <- pk # getProps
   drpProps <- drp # getProps
   pk # setCards (pkProps.cards <> drpProps.cards)
+  pk # setPackMode None
   phKill drp
+  clearOverlapCard
 
 drawX :: { amount :: Int, newGid :: Int } -> ClPack -> Eff _ Unit
 drawX { amount : x, newGid : newGid } c = do
