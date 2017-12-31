@@ -1,5 +1,15 @@
 "use strict";
 
+exports.getClientPlayerId=function() {
+  return clientPlayerId;
+};
+
+exports.setClientPlayerId=function(id) {
+  return function() {
+    clientPlayerId = id;
+  };
+};
+
 exports.clearPhaserState=function() {
 
 };
@@ -60,7 +70,7 @@ exports.activateDragTrigger=function() {
     dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: newCard };
     console.log("draw");
   }*/
-}
+};
 
 exports.setDragTrigger=function(c) {
   return function() {
@@ -199,7 +209,7 @@ exports.clearOverlapCard=function() {
   overlapCard = undefined;
 };
 
-exports.setOverlapCard=function(c) {
+exports.setMOverlapCard=function(c) {
   return function() {
     overlapCard = c;
   };
@@ -265,11 +275,16 @@ exports.phLoadTexture=function(o) {
   };
 };
 
-exports.updatePackText=function(c) {
-  return function() {
-    c.packText.setText(c.props.cards.length);
+exports.setCards=function(cards) {
+  return function(c) {
+    return function() {
+      c.props.cards = cards;
+      c.packText.setText(c.props.cards.length);
+    };
   };
 };
+
+
 
 // server interacting code
 

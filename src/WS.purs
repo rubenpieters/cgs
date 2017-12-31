@@ -192,7 +192,7 @@ confirmEvent rsRef (ClSelect gid) = pure $ SvSelect gid
 confirmEvent rsRef (ClGather) = pure $ SvGather
 confirmEvent rsRef (ClRemove gid) = pure $ SvRemove gid
 confirmEvent rsRef (ClFlip gid) = pure $ SvFlip gid
-confirmEvent rsRef (ClLock gid) = pure $ SvLock gid
+confirmEvent rsRef (ClLock gid x) = pure $ SvLock gid x
 confirmEvent rsRef (ClDraw gid { amount : amount }) = do
   rs <- readRef rsRef
   let newGid = rs.gidCounter + 1

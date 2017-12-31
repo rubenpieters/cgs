@@ -223,7 +223,7 @@ data ClGameEvent = ClSelect Gid
                  | ClGather
                  | ClRemove Gid
                  | ClFlip Gid
-                 | ClLock Gid
+                 | ClLock Gid { pid :: Int }
                  | ClDraw Gid { amount :: Int }
                  | ClDrop Gid { x :: Int, y :: Int }
                  | ClDropIn Gid { tgt :: Gid }
@@ -244,7 +244,7 @@ data SvGameEvent = SvSelect Gid
                  | SvGather
                  | SvRemove Gid
                  | SvFlip Gid
-                 | SvLock Gid
+                 | SvLock Gid { pid :: Int }
                  | SvDraw Gid { amount :: Int, newGid :: Int }
                  | SvDrop Gid { x :: Int, y :: Int }
                  | SvDropIn Gid { tgt :: Gid }

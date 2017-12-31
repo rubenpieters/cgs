@@ -2,6 +2,8 @@ var connected = false;
 
 var socket;
 
+var clientPlayerId = 0;
+
 function connectToServer() {
   if (! connected) {
     socket = new WebSocket('ws://localhost:8080');
@@ -111,6 +113,7 @@ var popupGroup;
 var cardGroup;
 
 var overlapCard;
+PS.ClientMain.clearOverlapCard();
 var overlapDropMenu;
 
 var globalId = 0;
@@ -257,12 +260,12 @@ function updateDragTrigger() {
       // pack is not locked: can draw
       if (dragTrigger.c.props.cards.length <= drawAmount.amount) {
         // drawing complete pack = dragging
-        eventBuffer.push(new PS.SharedData.ClLock(dragTrigger.c.props.gid));
+        eventBuffer.push(new PS.SharedData.ClLock(dragTrigger.c.props.gid, {pid: clientPlayerId}));
         dragTrigger.status = "waiting";
         dragTriggerText.text = "waiting";
       } else {
         // draw `amount` from pack
-        eventBuffer.push(new PS.SharedData.ClDraw(dragTrigger.c.props.gid, { amount: drawAmount.amount }))
+        eventBuffer.push(new PS.SharedData.ClDraw(dragTrigger.c.props.gid, { amount: drawAmount.amount }));
         dragTrigger.status = "waiting";
         dragTriggerText.text = "waiting";
       }
@@ -301,9 +304,10 @@ function cardInputUp(sprite, pointer) {
 }
 
 function dropCard(c) {
-  if (typeof overlapCard === 'undefined') {
+  PS.ClientMain.foldOverlapCard(function(overlap) {
+    return function () {
+    eventBuffer.push(new PS.SharedData.ClDropIn(c.props.gid, { tgt: overlap.props.gid }));
+  };})(function() {
     eventBuffer.push(new PS.SharedData.ClDrop(c.props.gid, { x: c.x, y: c.y }));
-  } else {
-    eventBuffer.push(new PS.SharedData.ClDropIn(c.props.gid, { tgt: overlapCard.props.gid }));
-  }
+  })();
 };

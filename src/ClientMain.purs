@@ -58,7 +58,6 @@ foreign import isConnected :: ∀ e. Eff (ph :: PHASER | e) Boolean
 foreign import moveCard :: ∀ e. Int -> Int -> ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import setTint :: ∀ e. Int -> ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import updateCardInfo :: ∀ e r. PhCard -> { | r } -> Eff (ph :: PHASER | e) Unit
-foreign import updatePackText :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
 
 foreign import phKill :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import phLoadTexture :: ∀ e. ClPack -> String -> Int -> Boolean -> Eff (ph :: PHASER | e) Unit
@@ -73,6 +72,8 @@ selectMode (LocalGameState gs) = do
     _ -> Other
   where
     filtered = filterM (\c -> isSelected c) (M.values gs.cardsByGid)
+
+data PackMode = Overlapped | Dragging PlayerId | Locked PlayerId | None
 
 isSelected :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Boolean
 isSelected c = do
@@ -133,14 +134,12 @@ updateGameState es = do
 --  updateCards
   where
     update :: SvGameEvent -> Eff _ Unit
-    --update (Select cid) = selectCard cid
-    --update Gather = gatherCards
-    --update (Remove cid) = removeCard cid
+
     update (SvSelect gid) = unsafeThrowException (error "unimplemented")
     update SvGather = unsafeThrowException (error "unimplemented")
     update (SvRemove gid) = unsafeThrowException (error "unimplemented")
     update (SvFlip gid) = onCard gid flipCard
-    update (SvLock gid) = onCard gid lockCard
+    update (SvLock gid { pid : pid }) = onCard gid (lockCard pid)
     update (SvDraw gid p) = onCard gid (drawX p)
     update (SvDrop gid _) = onCard gid dropCard
     update (SvDropIn drp { tgt: pk }) = onCard2 pk drp dropInCard
@@ -156,7 +155,6 @@ updateCard c = do
   --log ("updating card " <> show props.gid)
   if props.dragging
      then do
-            clearOverlaps
             updateDraggedCard c
             connected <- isConnected
             if connected
@@ -165,14 +163,23 @@ updateCard c = do
                     phProps <- c # phaserProps
                     socket `emit` (ClMoveGid {id: props.gid, x: phProps.x, y: phProps.y})
                else pure unit
+            -- (re)set/clear overlap card
+            mOldOverlap <- getOverlapCard
             mOverlap <- findFirstOverlapCard c
-            case mOverlap of
-              Just overlap -> do
-                props <- overlap # getProps
-                overlap # setProps (props { overlapped= true })
-                overlap # setTint 0x55ff55
-                setOverlapCard overlap
-              Nothing -> pure unit
+            case Tuple mOldOverlap mOverlap of
+              Tuple (Just oldOverlap) (Just overlap) -> do
+                overlapProps <- overlap # getProps
+                oldOverlapProps <- oldOverlap # getProps
+                if (overlapProps.gid /= oldOverlapProps.gid)
+                   then overlap # setPackMode Overlapped
+                   else pure unit
+              Tuple Nothing (Just overlap) -> do
+                overlap # setPackMode Overlapped
+              Tuple (Just oldOverlap) Nothing -> do
+                oldOverlap # setPackMode None
+                clearOverlapCard
+              Tuple Nothing Nothing -> do
+                clearOverlapCard
      else pure unit
 
 clearOverlaps :: Eff _ Unit
@@ -230,47 +237,36 @@ flipCard c = do
         -- if pack is empty, flip does nothing
         Nothing -> pure unit
 
-lockCard :: ClPack -> Eff _ Unit
-lockCard c = do
-  props <- c # getProps
-  let (newProps :: PackProps) = (props { lockedBy = Just 1 })
-  c # setProps newProps
+lockCard :: PlayerId -> ClPack -> Eff _ Unit
+lockCard pid c = do
+  c # setPackMode (Locked pid)
   activateDragTrigger
-  c # setTint 0xff0000
 
 dropCard :: ClPack -> Eff _ Unit
 dropCard c = do
   props <- c # getProps
   log ("dropping card" <> show props.gid)
-  let (newProps :: PackProps) = (props { lockedBy = Nothing, dragging = false })
-  c # setProps newProps
-  c # setTint 0xffffff
+  c # setPackMode None
 
 dropInCard :: ClPack -> ClPack -> Eff _ Unit
 dropInCard pk drp = do
   pkProps <- pk # getProps
   drpProps <- drp # getProps
-  let (newPkProps :: PackProps) = (pkProps { cards = pkProps.cards <> drpProps.cards })
+  pk # setCards (pkProps.cards <> drpProps.cards)
   phKill drp
-  pk # setProps newPkProps
-  pk # updatePackText
-  -- do something extra if src had 0 cards?
-  pure unit
 
 drawX :: { amount :: Int, newGid :: Int } -> ClPack -> Eff _ Unit
 drawX { amount : x, newGid : newGid } c = do
   props <- c # getProps
+  pid <- getClientPlayerId
   log ("drawing " <> show x <> " from " <> show props.gid)
   let drawnCards = take x props.cards
   let leftoverCards = drop x props.cards
-  c # setProps (props { cards= leftoverCards })
-  c # updatePackText
+  c # setCards leftoverCards
   let newPackInfo = { gid: newGid, cards: drawnCards, lockedBy: Just 1}
   newC <- materializeCard {x : 30, y : 30, texture : "empty", size : (drawnCards # length), pack : newPackInfo}
-  newProps <- newC # getProps
-  newC # setProps (newProps { dragging= true })
-  setDragTrigger newC
-  newC # setTint 0xff0000
+  newC # setPackMode (Dragging pid)
+  newC # setDragTrigger
   (LocalGameState gs) <- getGameState
   let updatedGs = LocalGameState ({ cardsByGid : gs.cardsByGid # M.insert newGid newC})
   setGameState updatedGs
@@ -372,6 +368,7 @@ onServerMessage :: ∀ e.
                    ServerMessage -> Eff (console :: CONSOLE, ph :: PHASER | e) Unit
 onServerMessage (ConfirmJoin {assignedId: id, roomGameState: gs}) = do
   log ("assigned player id: " <> show id)
+  setClientPlayerId id
   clearPhaserState
   lgs <- materializeState gs
   setGameState lgs
@@ -420,7 +417,6 @@ materializeState (SharedGameState gs) = do
   where
     f pack = do
                clPack <- materializeCard' pack
---               pure { pack : pack, clPack : clPack }
                pure clPack
 
 type PackProps =
@@ -432,10 +428,59 @@ type PackProps =
 
 foreign import getProps :: ∀ e. ClPack -> Eff (ph :: PHASER | e) PackProps
 foreign import setProps :: ∀ e. PackProps -> ClPack -> Eff (ph :: PHASER | e) Unit
+foreign import setCards :: ∀ e. Array Card -> ClPack -> Eff (ph :: PHASER | e) Unit
 
-foreign import getOverlapCard :: ∀ e. Eff (ph :: PHASER | e) ClPack
-foreign import clearOverlapCard :: ∀ e. Eff (ph :: PHASER | e) Unit
-foreign import setOverlapCard :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
+foreign import getOverlapCard :: ∀ e. Eff (ph :: PHASER | e) (Maybe ClPack)
+foreign import setMOverlapCard :: ∀ e. (Maybe ClPack) -> Eff (ph :: PHASER | e) Unit
+
+clearOverlapCard :: Eff _ Unit
+clearOverlapCard = setMOverlapCard Nothing
+
+setOverlapCard :: ClPack -> Eff _ Unit
+setOverlapCard x = setMOverlapCard (Just x)
+
+foldOverlapCard :: ∀ e a. (ClPack -> Eff (ph :: PHASER | e) a) -> (Eff (ph :: PHASER | e) a) -> Eff (ph :: PHASER | e) a
+foldOverlapCard fJust fNothing = do
+  mOverlap <- getOverlapCard
+  case mOverlap of
+    Just overlap -> fJust overlap
+    Nothing -> fNothing
 
 foreign import activateDragTrigger :: ∀ e. Eff (ph :: PHASER | e) Unit
 foreign import setDragTrigger :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
+
+foreign import getClientPlayerId :: ∀ e. Eff (ph :: PHASER | e) Int
+foreign import setClientPlayerId :: ∀ e. Int -> Eff (ph ::PHASER | e) Unit
+
+setPackMode :: PackMode -> ClPack -> Eff _ Unit
+setPackMode packMode c = do
+  props <- c # getProps
+  playerId <- getClientPlayerId
+  f packMode playerId props
+  where
+    f Overlapped _ props = do
+      log ("setting overlapped " <> show props.gid)
+      c # setTint 0x0000ff
+      c # setProps (props { overlapped= true, dragging= false, lockedBy= Nothing })
+      c # setOverlapCard
+    f (Dragging lkId) pId props | lkId == pId = do
+      log ("setting dragging1 " <> show props.gid)
+      c # setTint 0x00ff00
+      c # setProps (props { overlapped= false, dragging= true, lockedBy= Just lkId })
+    f (Dragging lkId) _ props = do
+      log ("setting dragging2 " <> show props.gid)
+      c # setTint 0xff0000
+      c # setProps (props { overlapped= false, dragging= true, lockedBy= Just lkId })
+    f (Locked lkId) pId props | lkId == pId = do
+      log ("setting locked1 " <> show props.gid)
+      c # setTint 0x008800
+      c # setProps (props { overlapped= false, dragging= false, lockedBy= Just lkId })
+    f (Locked lkId) _ props = do
+      log ("setting locked2 " <> show props.gid)
+      c # setTint 0x880000
+      c # setProps (props { overlapped= false, dragging= false, lockedBy= Just lkId })
+    f None _ props = do
+      log ("setting none " <> show props.gid)
+      c # setTint 0xffffff
+      c # setProps (props { overlapped= false, dragging= false, lockedBy= Nothing })
+
