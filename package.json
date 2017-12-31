@@ -14,7 +14,8 @@
     "test": "pulp test",
     "build:cl": "pulp build -O -m ClientMain --to dist/js/purs.js",
     "build:sv": "pulp build -O --to index.js",
-    "build": "npm run build:cl && npm run build:sv"
+    "build": "npm run-script build:cl && npm run-script build:sv",
+    "heroku-prebuild": "npm install -g bower purescript pulp && bower install && npm run-script build:sv"
   },
   "repository": {
     "type": "git",
