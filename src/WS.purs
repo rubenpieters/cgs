@@ -10,6 +10,7 @@ import Data.Argonaut.Parser (jsonParser)
 import Data.Array
 import Data.Either
 import Data.Foreign.EasyFFI
+import Data.Int (fromString)
 import Data.Map as M
 import Data.Maybe
 import Data.Traversable
@@ -18,6 +19,8 @@ import Data.Tuple
 import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console
 import Control.Monad.Eff.Ref
+
+import Node.Process (lookupEnv)
 
 type RoomState =
   { players :: Array Player
@@ -61,7 +64,12 @@ startServer :: Eff _ Unit
 startServer = do
   log "Server started"
   rsRef <- newRef (initialRoomState pgGameState)
-  wss <- mkServer { port : 8080 }
+  envPort <- lookupEnv "port"
+  let parsedPort = case (envPort >>= fromString) of
+        Just p -> p
+        Nothing -> 8080
+  log ("binding to port: " <> show parsedPort)
+  wss <- mkServer { port : parsedPort }
   -- handler when player connects
   (wss `on` SvConnection) (mkImpureFn1 $ onSocketConnection rsRef wss)
   pure unit
