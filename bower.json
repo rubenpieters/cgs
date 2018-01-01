@@ -16,7 +16,8 @@
     "purescript-refs": "^3.0.0",
     "purescript-node-process": "^5.0.0",
     "purescript-foreign-callbacks": "*",
-    "purescript-assert": "^3.0.0"
+    "purescript-assert": "^3.0.0",
+    "purescript-node-process": "^5.0.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^3.0.0"

@@ -4,11 +4,8 @@ import Control.Monad.Eff.Console
 import Control.Monad.Eff.Ref
 import Data.Array
 import Data.Either
-<<<<<<< 64c1d33d91f89f06353e79306f0f47143c957803
 import Data.Foreign.EasyFFI
 import Data.Int (fromString)
-=======
->>>>>>> update server gamestate on clEvent
 import Data.Foreign.Callback
 import Data.Foreign.EasyFFI
 import Data.Maybe
@@ -203,7 +200,6 @@ onClientMessage rsRef server client clientId (ClGameStateUpdate {events: events}
   let updatedGameState = foldr updateSharedGameState roomState.gameState confirmedEvents
   writeRef rsRef (roomState { gameState= updatedGameState })
   sendMessage client (ConfirmUpdates {events: confirmedEvents})
-  broadcast server (ConfirmUpdates {events: confirmedEvents}) client
 
 confirmEvent :: Ref RoomState ->
                 PlayerId ->
