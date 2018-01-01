@@ -64,7 +64,7 @@ startServer :: Eff _ Unit
 startServer = do
   log "Server started"
   rsRef <- newRef (initialRoomState pgGameState)
-  envPort <- lookupEnv "port"
+  envPort <- lookupEnv "PORT"
   let parsedPort = case (envPort >>= fromString) of
         Just p -> p
         Nothing -> 8080
