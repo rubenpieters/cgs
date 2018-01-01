@@ -180,13 +180,15 @@ exports.hideCardSelectMenu=function() {
   cardDragProp.events.onInputDown.removeAll();
 };
 
-exports.checkOverlap=function(c1) {
+const checkOverlap=function(c1) {
   return function(c2) {
     var bound1 = c1.getBounds();
     var bound2 = c2.getBounds();
     return Phaser.Rectangle.intersects(bound1, bound2);
   };
 };
+
+exports.checkOverlap = checkOverlap;
 
 exports.gameState=function() {
   return gameState;
@@ -224,6 +226,12 @@ exports.updateDraggedCard=function(card) {
     card.y = newY;
     card.packText.x = newX + 3;
     card.packText.y = newY + 3;
+    // TODO: should this check be here? Maybe move to updateCard
+    if (checkOverlap(card)(playerHandZone)) {
+      playerHandZone.tint = 0xd366ce;
+    } else {
+      playerHandZone.tint = 0xd3ffce;
+    }
   };
 };
 

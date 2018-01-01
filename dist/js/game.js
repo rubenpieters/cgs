@@ -154,7 +154,7 @@ function create() {
   zoneGroup.add(playerHandZone);
   playerHandZone.height = handZoneY;
   playerHandZone.width = gameW;
-  playerHandZone.setTint = 0xd3ffce;
+  playerHandZone.tint = 0xd3ffce;
 
   // Menu
 
@@ -302,7 +302,10 @@ function cardInputDown(sprite, pointer) {
 }
 
 function cardInputUp(sprite, pointer) {
+  playerHandZone.tint = 0x0d3ffce;
+
   console.log("cardInputUp, " + sprite.props.gid);
+
   const draggedCard = dragTrigger.c;
   const wasInHand = draggedCard.props.inhand;
   const droppedInHand = PS.ClientMain.checkOverlap(draggedCard)(playerHandZone);
