@@ -200,6 +200,7 @@ confirmEvent rsRef (ClDraw gid { amount : amount }) = do
   pure $ SvDraw gid { amount, newGid : newGid}
 confirmEvent rsRef (ClDrop gid pos) = pure $ SvDrop gid pos
 confirmEvent rsRef (ClDropIn gid x) = pure $ SvDropIn gid x
+confirmEvent rsRef (ClToHand gid x) = pure $ SvToHand gid x
 
 onDisconnect :: Ref RoomState ->
                 Int ->

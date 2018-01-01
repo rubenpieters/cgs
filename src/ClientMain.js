@@ -33,6 +33,7 @@ exports.materializeCard=function(o) {
       selected: false,
       dragging: false,
       overlapped: false,
+      inhand: false,
       // copy pack info from o.pack
       gid: o.pack.gid,
       cards: o.pack.cards,
