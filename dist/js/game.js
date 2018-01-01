@@ -94,6 +94,7 @@ var botMenH = 100;
 var rgtMenH = 200;
 var playRegionY = gameH - botMenH;
 var playRegionX = gameW - rgtMenH;
+var handZoneY = 80;
 
 var cardH = 40;
 var cardW = 24;
@@ -111,10 +112,12 @@ var newCardMarker = {
 
 var popupGroup;
 var cardGroup;
+var zoneGroup;
 
 var overlapCard;
 PS.ClientMain.clearOverlapCard();
 var overlapDropMenu;
+var playerHandZone;
 
 var globalId = 0;
 
@@ -139,6 +142,19 @@ function preload() {
 
 function create() {
   game.canvas.oncontextmenu = function (e) { e.preventDefault(); };
+
+  cardGroup = game.add.group();
+  zoneGroup = game.add.group();
+
+  game.world.bringToTop(cardGroup);
+
+  // Player Hand
+
+  playerHandZone = game.add.sprite(0, playRegionY - handZoneY, 'empty');
+  zoneGroup.add(playerHandZone);
+  playerHandZone.height = handZoneY;
+  playerHandZone.width = gameW;
+  playerHandZone.setTint = 0xd3ffce;
 
   // Menu
 
@@ -183,7 +199,6 @@ function create() {
   infoText = game.add.text(playRegionX + 40, 50 + prevH, "", style);
 
   // Cards
-  cardGroup = game.add.group();
 //  PS.ClientMain.phMkCard({x: 10, y: 10, pack: [PS.ClientMain.newCard]})();
 
   // Popup Menu
@@ -258,14 +273,18 @@ function updateDragTrigger() {
       // pack is locked: noop
     } else {
       // pack is not locked: can draw
-      if (dragTrigger.c.props.cards.length <= drawAmount.amount) {
-        // drawing complete pack = dragging
-        eventBuffer.push(new PS.SharedData.ClLock(dragTrigger.c.props.gid, {pid: clientPlayerId}));
-        dragTrigger.status = "waiting";
-        dragTriggerText.text = "waiting";
+      if (dragTrigger.c.props.inhand) {
+        // pack is in hand: can draw immediately
+        PS.ClientMain.setDragTrigger(dragTrigger.c)();
       } else {
-        // draw `amount` from pack
-        eventBuffer.push(new PS.SharedData.ClDraw(dragTrigger.c.props.gid, { amount: drawAmount.amount }));
+        // pack not in hand: send server
+        if (dragTrigger.c.props.cards.length <= drawAmount.amount) {
+          // drawing complete pack = dragging
+          eventBuffer.push(new PS.SharedData.ClLock(dragTrigger.c.props.gid, {pid: clientPlayerId}));
+        } else {
+          // draw `amount` from pack
+          eventBuffer.push(new PS.SharedData.ClDraw(dragTrigger.c.props.gid, { amount: drawAmount.amount }));
+        }
         dragTrigger.status = "waiting";
         dragTriggerText.text = "waiting";
       }
@@ -284,19 +303,23 @@ function cardInputDown(sprite, pointer) {
 
 function cardInputUp(sprite, pointer) {
   console.log("cardInputUp, " + sprite.props.gid);
-  if (typeof dragTrigger.c != 'undefined' && dragTrigger.c.props.gid === sprite.props.gid) {
+  const draggedCard = dragTrigger.c;
+  const wasInHand = draggedCard.props.inhand;
+  const droppedInHand = PS.ClientMain.checkOverlap(draggedCard)(playerHandZone);
+  if (wasInHand && droppedInHand) {
+    // client movement only
+    PS.ClientMain.dropCard(draggedCard)();
+  } else if (!wasInHand && droppedInHand) {
+    // send server dropInHand
+    eventBuffer.push(new PS.SharedData.ClToHand(draggedCard.props.gid, { pid: clientPlayerId }));
+  } else if (!droppedInHand) {
+    // inform server drop
+    //const draggingDrawnCard = dragTrigger.c.props.gid !== sprite.props.gid;
     if (dragTrigger.left) {
-      //eventBuffer.push(new PS.SharedData.ClDrop(sprite.props.gid, { x: sprite.x, y: sprite.y }));
-      dropCard(sprite);
-    } else if (dragTrigger.right) {
-      // TODO: only right-click if mouse bounds are still within card bounds?
-      console.log("right click!");
+      dropCard(draggedCard);
+    } else {
       eventBuffer.push(new PS.SharedData.ClFlip(sprite.props.gid));
     }
-  } else {
-    // this branch occurs when drawing from a pack and then the newly dragged card is released
-    console.log("sending cldrop after draw");
-    dropCard(dragTrigger.c);
   }
 
   dragTrigger = { status: "none" };
@@ -306,8 +329,8 @@ function cardInputUp(sprite, pointer) {
 function dropCard(c) {
   PS.ClientMain.foldOverlapCard(function(overlap) {
     return function () {
-    eventBuffer.push(new PS.SharedData.ClDropIn(c.props.gid, { tgt: overlap.props.gid }));
-  };})(function() {
-    eventBuffer.push(new PS.SharedData.ClDrop(c.props.gid, { x: c.x, y: c.y }));
-  })();
+      eventBuffer.push(new PS.SharedData.ClDropIn(c.props.gid, { tgt: overlap.props.gid }));
+    };})(function() {
+      eventBuffer.push(new PS.SharedData.ClDrop(c.props.gid, { x: c.x, y: c.y }));
+    })();
 };

@@ -141,8 +141,18 @@ updateGameState es = do
     update (SvFlip gid) = onCard gid flipCard
     update (SvLock gid { pid : pid }) = onCard gid (lockCard pid)
     update (SvDraw gid p) = onCard gid (drawX p)
-    update (SvDrop gid _) = onCard gid dropCard
+    update (SvDrop gid _) = do
+      onCard gid dropCard
+      onCard gid setInField
     update (SvDropIn drp { tgt: pk }) = onCard2 pk drp dropInCard
+    update (SvToHand gid { pid: pid }) = do
+      ownPid <- getClientPlayerId
+      if (ownPid == pid)
+         then do
+           onCard gid dropCard
+           onCard gid setInHand
+         else do
+           onCard gid phKill
 
 updateCards :: Eff _ Unit
 updateCards = do
@@ -157,7 +167,7 @@ updateCard c = do
      then do
             updateDraggedCard c
             connected <- isConnected
-            if connected
+            if not props.inhand && connected
                then do
                     socket <- getSocket
                     phProps <- c # phaserProps
@@ -425,6 +435,7 @@ type PackProps =
   { selected :: Boolean
   , dragging :: Boolean
   , overlapped :: Boolean
+  , inhand :: Boolean
   | PackInfo
   }
 
@@ -453,6 +464,16 @@ foreign import setDragTrigger :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
 
 foreign import getClientPlayerId :: ∀ e. Eff (ph :: PHASER | e) Int
 foreign import setClientPlayerId :: ∀ e. Int -> Eff (ph ::PHASER | e) Unit
+
+setInHand :: ClPack -> Eff _ Unit
+setInHand c = do
+  props <- c # getProps
+  c # setProps (props { inhand= true })
+
+setInField :: ClPack -> Eff _ Unit
+setInField c = do
+  props <- c # getProps
+  c # setProps (props { inhand= false })
 
 setPackMode :: PackMode -> ClPack -> Eff _ Unit
 setPackMode packMode c = do
