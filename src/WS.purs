@@ -63,6 +63,9 @@ type Player =
   { id :: PlayerId
   }
 
+-- Maybe need to start http server as well?
+-- https://devcenter.heroku.com/articles/node-websockets
+
 startServer :: Eff _ Unit
 startServer = do
   log "Server started"
