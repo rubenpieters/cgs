@@ -11,6 +11,7 @@ import Data.Array
 import Data.Either
 import Data.Foreign.EasyFFI
 import Data.Int (fromString)
+import Data.Foreign.Callback
 import Data.Map as M
 import Data.Maybe
 import Data.Traversable
@@ -71,7 +72,7 @@ startServer = do
   log ("binding to port: " <> show parsedPort)
   wss <- mkServer { port : parsedPort }
   -- handler when player connects
-  (wss `on` SvConnection) (mkImpureFn1 $ onSocketConnection rsRef wss)
+  (wss `on` SvConnection) (callback1 $ onSocketConnection rsRef wss)
   pure unit
 
 foreign import data WS :: Effect
@@ -129,19 +130,20 @@ instance clCloseEvent :: WsEvent ClClose where
 
 
 class WsListener o msg cb | o -> cb where
-  on :: ∀ e a e'. o -> msg -> Impure cb -> Eff (ws :: WS | e') Unit
+  on :: ∀ e a e'. o -> msg -> cb -> Eff (ws :: WS | e') Unit
 
-instance svConnectionListener :: WsListener (Server cmsg smsg) SvConnection ((Client smsg cmsg) -> Unit) where
+instance svConnectionListener :: WsListener (Server cmsg smsg) SvConnection (Callback1 (Client smsg cmsg) Unit) where
   on = unsafeOn
 
-instance clMessageListener :: WsListener (Client smsg cmsg) ClMessage (String -> Unit) where
+instance clMessageListener :: WsListener (Client smsg cmsg) ClMessage (Callback1 String Unit) where
   on = unsafeOn
 
-instance clCloseListener :: WsListener (Client smsg cmsg) ClClose (Unit -> Unit) where
+instance clCloseListener :: WsListener (Client smsg cmsg) ClClose (Callback0 Unit) where
   on = unsafeOn
 
-unsafeOn :: ∀ o f e msg. (WsEvent msg) => o -> msg -> Impure f -> Eff (ws :: WS | e) Unit
-unsafeOn obj msg f = unsafeForeignProcedure ["obj", "event", "cb", ""] "obj.on(event, cb);" obj (eventStr msg) f
+-- cb is an impure callback
+unsafeOn :: ∀ o cb e msg. (WsEvent msg) => o -> msg -> cb -> Eff (ws :: WS | e) Unit
+unsafeOn obj msg cb = unsafeForeignProcedure ["obj", "event", "cb", ""] "obj.on(event, cb);" obj (eventStr msg) cb
 
 onSocketConnection :: Ref RoomState ->
                       (Server ClientMessage ServerMessage) ->
@@ -153,8 +155,8 @@ onSocketConnection rsRef server client = do
   let clientId = roomState.playerIdCounter + 1
   log ("New player has connected: " <> show clientId)
   -- set event handlers
-  (client `on` ClMessage) (mkImpureFn1 (onMessage rsRef server client clientId))
-  (client `on` ClClose) (mkImpureFn1 (\_ -> onDisconnect rsRef clientId))
+  (client `on` ClMessage) (callback1 $ onMessage rsRef server client clientId)
+  (client `on` ClClose) (callback0 $ onDisconnect rsRef clientId)
   -- send id to client
   sendMessage client (ConfirmJoin { assignedId : clientId, roomGameState : roomState.gameState })
   -- update other players
@@ -219,13 +221,3 @@ onDisconnect rsRef toRemoveId = do
   roomState <- readRef rsRef
   let (newPlayers :: Array Player) = filter (\p -> p.id /= toRemoveId) roomState.players
   setRef rsRef (roomState {players = newPlayers})
-
--- TODO: use purescript-foreign-callbacks? (needs to be updated first)
-
-newtype Impure f = Impure f
-
-mkImpureFn1 :: ∀ a e r. (a -> Eff e r) -> Impure (a -> r)
-mkImpureFn1 f = Impure (unsafeForeignFunction ["f", "a"] "f(a)();" f)
-
-mkImpureFn2 :: ∀ a b e r. (a -> b -> Eff e r) -> Impure (a -> b -> r)
-mkImpureFn2 f = Impure (unsafeForeignFunction ["f", "a", "b"] "f(a)(b)();" f)
