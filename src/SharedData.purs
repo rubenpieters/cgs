@@ -286,7 +286,3 @@ instance decodeClientMessage :: DecodeJson ClientMessage
   where decodeJson = genericDecodeJson
 instance showClientMessage :: Show ClientMessage
   where show = genericShow
-
-
-setRef :: forall s r. Ref s -> s -> Eff (ref :: REF | r) Unit
-setRef ref s = modifyRef ref (const s)

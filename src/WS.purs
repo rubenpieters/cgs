@@ -165,7 +165,7 @@ onSocketConnection rsRef server client = do
   -- TODO: batch into one message?
   for_ roomState.players (\player -> sendMessage client (NewPlayer { id : player.id }))
   -- update player list
-  setRef rsRef (roomState {players = {id : clientId} : roomState.players, playerIdCounter = clientId})
+  writeRef rsRef (roomState {players = {id : clientId} : roomState.players, playerIdCounter = clientId})
 
 onMessage :: Ref RoomState ->
              (Server ClientMessage ServerMessage) ->
@@ -206,7 +206,7 @@ confirmEvent rsRef (ClLock gid x) = pure $ SvLock gid x
 confirmEvent rsRef (ClDraw gid { amount : amount }) = do
   rs <- readRef rsRef
   let newGid = rs.gidCounter + 1
-  setRef rsRef (rs {gidCounter = newGid})
+  writeRef rsRef (rs {gidCounter = newGid})
   pure $ SvDraw gid { amount, newGid : newGid}
 confirmEvent rsRef (ClDrop gid pos) = pure $ SvDrop gid pos
 confirmEvent rsRef (ClDropIn gid x) = pure $ SvDropIn gid x
@@ -220,4 +220,4 @@ onDisconnect rsRef toRemoveId = do
   log ("removing player")
   roomState <- readRef rsRef
   let (newPlayers :: Array Player) = filter (\p -> p.id /= toRemoveId) roomState.players
-  setRef rsRef (roomState {players = newPlayers})
+  writeRef rsRef (roomState {players = newPlayers})
