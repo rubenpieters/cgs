@@ -218,16 +218,16 @@ drawFromPack (Pack p) n = { remaining : remaining, drawn : drawn }
 
 -- CLIENT GAME EVENT
 -- client sends to server
--- TODO: don't add pid arguments, let server add these?
+
 data ClGameEvent = ClSelect Gid
                  | ClGather
                  | ClRemove Gid
                  | ClFlip Gid
-                 | ClLock Gid { pid :: Int }
+                 | ClLock Gid
                  | ClDraw Gid { amount :: Int }
                  | ClDrop Gid { x :: Int, y :: Int }
                  | ClDropIn Gid { tgt :: Gid }
-                 | ClToHand Gid { pid :: Int }
+                 | ClToHand Gid
 
 derive instance genericClGameEvent :: Rep.Generic ClGameEvent _
 instance encodeJsonClGameEventt :: EncodeJson ClGameEvent
@@ -239,7 +239,7 @@ instance showGameEventShow :: Show ClGameEvent
 
 -- SERVER GAME EVENT
 -- server sends to client
--- server adds gids where necessary
+-- server adds information where necessary
 
 data SvGameEvent = SvSelect Gid
                  | SvGather
