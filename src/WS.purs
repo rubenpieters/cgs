@@ -184,25 +184,26 @@ onClientMessage rsRef server client clientId (ClMoveGid {id: playerId, x: x, y: 
   broadcast server (SvMoveGid {id :playerId, x: x, y: y}) client
 onClientMessage rsRef server client clientId (ClGameStateUpdate {events: events}) = do
   log ("events: " <> show events)
-  confirmedEvents <- traverse (confirmEvent rsRef) events
+  confirmedEvents <- traverse (confirmEvent rsRef clientId) events
   sendMessage client (ConfirmUpdates {events: confirmedEvents})
 
 confirmEvent :: Ref RoomState ->
+                PlayerId ->
                 ClGameEvent ->
                 Eff _ SvGameEvent
-confirmEvent rsRef (ClSelect gid) = pure $ SvSelect gid
-confirmEvent rsRef (ClGather) = pure $ SvGather
-confirmEvent rsRef (ClRemove gid) = pure $ SvRemove gid
-confirmEvent rsRef (ClFlip gid) = pure $ SvFlip gid
-confirmEvent rsRef (ClLock gid x) = pure $ SvLock gid x
-confirmEvent rsRef (ClDraw gid { amount : amount }) = do
+confirmEvent rsRef pid (ClSelect gid) = pure $ SvSelect gid
+confirmEvent rsRef pid (ClGather) = pure $ SvGather
+confirmEvent rsRef pid (ClRemove gid) = pure $ SvRemove gid
+confirmEvent rsRef pid (ClFlip gid) = pure $ SvFlip gid
+confirmEvent rsRef pid (ClLock gid) = pure $ SvLock gid { pid : pid }
+confirmEvent rsRef pid (ClDraw gid { amount : amount }) = do
   rs <- readRef rsRef
   let newGid = rs.gidCounter + 1
   writeRef rsRef (rs {gidCounter = newGid})
   pure $ SvDraw gid { amount, newGid : newGid}
-confirmEvent rsRef (ClDrop gid pos) = pure $ SvDrop gid pos
-confirmEvent rsRef (ClDropIn gid x) = pure $ SvDropIn gid x
-confirmEvent rsRef (ClToHand gid x) = pure $ SvToHand gid x
+confirmEvent rsRef pid (ClDrop gid pos) = pure $ SvDrop gid pos
+confirmEvent rsRef pid (ClDropIn gid x) = pure $ SvDropIn gid x
+confirmEvent rsRef pid (ClToHand gid) = pure $ SvToHand gid { pid : pid }
 
 onDisconnect :: Ref RoomState ->
                 Int ->

@@ -280,7 +280,7 @@ function updateDragTrigger() {
         // pack not in hand: send server
         if (dragTrigger.c.props.cards.length <= drawAmount.amount) {
           // drawing complete pack = dragging
-          eventBuffer.push(new PS.SharedData.ClLock(dragTrigger.c.props.gid, {pid: clientPlayerId}));
+          eventBuffer.push(new PS.SharedData.ClLock(dragTrigger.c.props.gid));
         } else {
           // draw `amount` from pack
           eventBuffer.push(new PS.SharedData.ClDraw(dragTrigger.c.props.gid, { amount: drawAmount.amount }));
@@ -314,7 +314,7 @@ function cardInputUp(sprite, pointer) {
     PS.ClientMain.dropCard(draggedCard)();
   } else if (!wasInHand && droppedInHand) {
     // send server dropInHand
-    eventBuffer.push(new PS.SharedData.ClToHand(draggedCard.props.gid, { pid: clientPlayerId }));
+    eventBuffer.push(new PS.SharedData.ClToHand(draggedCard.props.gid));
   } else if (!droppedInHand) {
     // inform server drop
     //const draggingDrawnCard = dragTrigger.c.props.gid !== sprite.props.gid;
