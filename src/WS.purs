@@ -1,24 +1,24 @@
 module WS where
 
+import Control.Monad.Eff.Console
+import Control.Monad.Eff.Ref
+import Data.Array
+import Data.Either
+import Data.Foreign.Callback
+import Data.Foreign.EasyFFI
+import Data.Maybe
+import Data.Traversable
+import Data.Tuple
+import Prelude
 import SharedData
 
-import Prelude
+import ClientMain (gameState)
+import Control.Monad.Eff (kind Effect, Eff)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Array
-import Data.Either
-import Data.Foreign.EasyFFI
-import Data.Foreign.Callback
 import Data.Map as M
-import Data.Maybe
-import Data.Traversable
-import Data.Tuple
-
-import Control.Monad.Eff (kind Effect, Eff)
-import Control.Monad.Eff.Console
-import Control.Monad.Eff.Ref
 
 type RoomState =
   { players :: Array Player
@@ -47,6 +47,7 @@ pgCards = M.fromFoldable ([
                 , cards : cards
                 , position : Pos {x : 50, y : 50}
                 , lockedBy : Nothing
+                , inHandOf : Nothing
                 })
   ])
   where
@@ -182,9 +183,13 @@ onClientMessage rsRef server client clientId (ClMoveGid {id: playerId, x: x, y: 
   -- check if client id == player id?
   log ("player " <> show playerId <> " moving gid, x:" <> show x <> ", y: " <> show y)
   broadcast server (SvMoveGid {id :playerId, x: x, y: y}) client
+  -- TODO: update gid position in server gamestate?
 onClientMessage rsRef server client clientId (ClGameStateUpdate {events: events}) = do
   log ("events: " <> show events)
   confirmedEvents <- traverse (confirmEvent rsRef clientId) events
+  roomState <- readRef rsRef
+  let updatedGameState = foldr updateSharedGameState roomState.gameState confirmedEvents
+  writeRef rsRef (roomState { gameState= updatedGameState })
   sendMessage client (ConfirmUpdates {events: confirmedEvents})
 
 confirmEvent :: Ref RoomState ->

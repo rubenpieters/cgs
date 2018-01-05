@@ -15,7 +15,8 @@
     "purescript-newtype": "^2.0.0",
     "purescript-argonaut-generic": "^1.2.0",
     "purescript-refs": "^3.0.0",
-    "purescript-foreign-callbacks": "*"
+    "purescript-foreign-callbacks": "*",
+    "purescript-assert": "^3.0.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^3.0.0"

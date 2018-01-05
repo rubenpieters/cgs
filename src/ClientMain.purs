@@ -134,7 +134,6 @@ updateGameState es = do
 --  updateCards
   where
     update :: SvGameEvent -> Eff _ Unit
-
     update (SvSelect gid) = unsafeThrowException (error "unimplemented")
     update SvGather = unsafeThrowException (error "unimplemented")
     update (SvRemove gid) = unsafeThrowException (error "unimplemented")
@@ -144,6 +143,7 @@ updateGameState es = do
     update (SvDrop gid _) = do
       onCard gid dropCard
       onCard gid setInField
+    -- TODO: connected clients dont see DropIn event
     update (SvDropIn drp { tgt: pk }) = onCard2 pk drp dropInCard
     update (SvToHand gid { pid: pid }) = do
       ownPid <- getClientPlayerId
@@ -506,4 +506,3 @@ setPackMode packMode c = do
       log ("setting none " <> show props.gid)
       c # setTint 0xffffff
       c # setProps (props { overlapped= false, dragging= false, lockedBy= Nothing })
-
