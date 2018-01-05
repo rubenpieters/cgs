@@ -1,6 +1,7 @@
 module SharedData where
 
-import Control.Monad.Eff.Exception
+import Prelude
+
 import Data.Array
 import Data.Either
 import Data.Foldable
@@ -9,27 +10,16 @@ import Data.Maybe
 import Data.Traversable
 import Data.Tuple
 import Data.Unfoldable
-import Prelude
-
-import Control.Monad.Eff (kind Effect, Eff)
-import Control.Monad.Eff.Console (CONSOLE, log)
-import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
-import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
-import Control.Monad.Except.Trans (runExceptT)
-import Data.Argonaut.Core (stringify)
-import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
-import Data.Argonaut.Decode.Generic.Rep (class DecodeLiteral, decodeLiteralSumWithTransform, genericDecodeJson)
-import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
-import Data.Argonaut.Encode.Generic.Rep (class EncodeLiteral, encodeLiteralSumWithTransform, genericEncodeJson)
-import Data.Foreign.Generic as DFG
+import Data.Argonaut.Decode.Class (class DecodeJson)
+import Data.Argonaut.Decode.Generic.Rep (genericDecodeJson)
+import Data.Argonaut.Encode.Class (class EncodeJson)
+import Data.Argonaut.Encode.Generic.Rep (genericEncodeJson)
 import Data.Generic.Rep as Rep
 import Data.Generic.Rep.Show (genericShow)
-import Data.List.NonEmpty (NonEmptyList(..))
 import Data.Map as M
-import Data.Newtype (unwrap)
-import Data.NonEmpty ((:|))
 
-import Control.Monad.Eff.Ref
+import Control.Monad.Eff.Exception (error)
+import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
 
 type Player =
   { playerId :: String
@@ -108,6 +98,7 @@ instance showPosition :: Show Position
 
 data Pack = Pack
   { position :: Position
+  , inHandOf :: Maybe PlayerId
   | PackInfo
   }
 
@@ -183,14 +174,22 @@ updateSGE :: SharedGameEvent -> SharedGameState -> SharedGameState
 updateSGE (FlipTop gid) gs = onGid gid flipTop gs
 updateSGE (MoveTo l gid) gs = onGid gid (moveTo l) gs
 
-onGid :: Gid
-      -> (Pack -> Pack)
-      -> SharedGameState
-      -> SharedGameState
+onGid :: Gid -> (Pack -> Pack) -> SharedGameState -> SharedGameState
 onGid gid f (SharedGameState gs) = case M.lookup gid gs.cardsByGid of
     Just (pack :: Pack) -> SharedGameState gs { cardsByGid = M.update (Just <<< f) gid gs.cardsByGid}
     -- TODO: log unexpected gid somewhere?
     Nothing -> SharedGameState gs
+
+forGid :: ∀ a. Gid -> (Pack -> a) -> SharedGameState -> Maybe a
+forGid gid f (SharedGameState gs) = f <$> M.lookup gid gs.cardsByGid
+
+setGid :: Gid -> Pack -> SharedGameState -> SharedGameState
+setGid gid pack (SharedGameState gs) =
+  SharedGameState (gs { cardsByGid = M.insert gid pack gs.cardsByGid })
+
+removeGid :: Gid -> SharedGameState -> SharedGameState
+removeGid gid (SharedGameState gs) =
+  SharedGameState (gs { cardsByGid = M.delete gid gs.cardsByGid })
 
 flipTop :: Pack -> Pack
 flipTop (Pack p) = Pack $ case head p.cards of
@@ -207,14 +206,47 @@ flipCard (Card c) = Card $ c { faceDir = oppositeDir c.faceDir }
 moveTo :: Position -> Pack -> Pack
 moveTo (Pos l) (Pack p) = Pack $ p { position = Pos l }
 
-drawFromPack :: Pack -> Int -> {remaining :: Array Card, drawn :: Array Card}
-drawFromPack _ x | x <= 0 = unsafeThrowException (error "drawing <= 0")
-drawFromPack (Pack p) n = { remaining : remaining, drawn : drawn }
+drawFromPack :: Int -> Pack -> {remaining :: Array Card, drawn :: Array Card}
+drawFromPack x _ | x <= 0 = unsafeThrowException (error "drawing <= 0")
+drawFromPack n (Pack p) = { remaining : remaining, drawn : drawn }
   where
     remaining = drop n p.cards
     drawn = take n p.cards
 
+lockPack :: PlayerId -> Pack -> Pack
+lockPack pid (Pack p) = Pack $ p { lockedBy = Just pid }
 
+packToHand :: PlayerId -> Pack -> Pack
+packToHand pid (Pack p) = Pack $ p { inHandOf = Just pid }
+
+updateSharedGameState :: SvGameEvent -> SharedGameState -> SharedGameState
+updateSharedGameState (SvSelect gid) gs = gs
+updateSharedGameState SvGather gs = gs
+updateSharedGameState (SvRemove gid) gs = gs
+updateSharedGameState (SvFlip gid) gs = onGid gid flipTop gs
+updateSharedGameState (SvLock gid { pid: pid }) gs = onGid gid (lockPack pid) gs
+updateSharedGameState (SvDraw gid { amount: amount, newGid: newGid }) gs =
+  case (forGid gid (drawFromPack amount) gs) of
+    Just { remaining: remaining, drawn: drawn } ->
+      -- set cards of old pack to remaining cards
+      let gs' = onGid gid (\(Pack p) -> Pack $ p { cards= remaining }) gs
+      -- create new pack from drawn cards
+          newPack = Pack { position: (Pos { x: 0, y: 0 })
+                         , inHandOf: Nothing
+                         , gid: newGid
+                         , cards: drawn
+                         , lockedBy: Nothing }
+      in setGid newGid newPack gs'
+    Nothing -> gs
+--    where { remaining: remaining, drawn: drawn } = drawFromPack (gs.cardsById)
+updateSharedGameState (SvDrop gid pos) gs = onGid gid (moveTo (Pos pos)) gs
+updateSharedGameState (SvDropIn drp { tgt: pk }) gs =
+  case (forGid drp (\(Pack p) -> p.cards) gs) of
+    Just (cards :: Array Card) ->
+      let gs' = onGid pk (\(Pack p) -> Pack $ p { cards= p.cards <> cards }) gs
+      in removeGid drp gs'
+    Nothing -> gs
+updateSharedGameState (SvToHand gid { pid: pid }) gs = onGid gid (packToHand pid) gs
 
 -- CLIENT GAME EVENT
 -- client sends to server
