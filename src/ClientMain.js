@@ -284,6 +284,31 @@ exports.phLoadTexture=function(o) {
   };
 };
 
+exports.phSetVisible=function(o) {
+  return function() {
+    o.packText.visible = true;
+    o.visible = true;
+  };
+};
+
+exports.phSetInvisible=function(o) {
+  return function() {
+    o.visible = false;
+      o.packText.visible = false;
+  };
+};
+
+exports.phSetPos=function(pos) {
+  return function(o) {
+    return function() {
+      o.x = pos.x;
+      o.y = pos.y;
+      o.packText.x = pos.x;
+      o.packText.y = pos.y;
+    };
+  };
+};
+
 exports.setCards=function(cards) {
   return function(c) {
     return function() {

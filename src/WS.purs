@@ -203,6 +203,7 @@ onClientMessage rsRef server client clientId (ClGameStateUpdate {events: events}
   let updatedGameState = foldr updateSharedGameState roomState.gameState confirmedEvents
   writeRef rsRef (roomState { gameState= updatedGameState })
   sendMessage client (ConfirmUpdates {events: confirmedEvents})
+  broadcast server (ConfirmUpdates {events: confirmedEvents}) client
 
 confirmEvent :: Ref RoomState ->
                 PlayerId ->

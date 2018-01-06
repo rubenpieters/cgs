@@ -62,6 +62,11 @@ foreign import updateCardInfo :: ∀ e r. PhCard -> { | r } -> Eff (ph :: PHASER
 foreign import phKill :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import phLoadTexture :: ∀ e. ClPack -> String -> Int -> Boolean -> Eff (ph :: PHASER | e) Unit
 
+foreign import phSetVisible :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
+foreign import phSetInvisible :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
+
+foreign import phSetPos :: ∀ e. { x:: Int, y:: Int } -> ClPack -> Eff (ph :: PHASER | e) Unit
+
 data SelectMode = Single ClPack | Other
 
 selectMode :: ∀ e. LocalGameState -> Eff (ph :: PHASER | e) SelectMode
@@ -140,7 +145,9 @@ updateGameState es = do
     update (SvFlip gid) = onCard gid flipCard
     update (SvLock gid { pid : pid }) = onCard gid (lockCard pid)
     update (SvDraw gid p) = onCard gid (drawX p)
-    update (SvDrop gid _) = do
+    update (SvDrop gid p) = do
+      onCard gid phSetVisible
+      onCard gid (phSetPos p)
       onCard gid dropCard
       onCard gid setInField
     -- TODO: connected clients dont see DropIn event
@@ -152,7 +159,7 @@ updateGameState es = do
            onCard gid dropCard
            onCard gid setInHand
          else do
-           onCard gid phKill
+           onCard gid phSetInvisible
 
 updateCards :: Eff _ Unit
 updateCards = do
