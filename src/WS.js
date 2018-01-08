@@ -1,10 +1,22 @@
 "use strict";
 
+const express = require('express');
 const WebSocket = require("uws");
+const path = require('path');
 
-exports.mkServer = function(config){
+exports.mkServer = function(PORT){
   return function() {
-    return new WebSocket.Server(config);
+    const DIST = path.join(__dirname, 'dist');
+    console.log('dist folder: ' + DIST);
+
+    const server = express()
+      .listen(PORT, function() { console.log('Listening on ' + PORT) });
+
+    express().use(express.static(DIST));
+
+    const wss = new WebSocket.Server({ server: server });
+
+    return wss
   };
 };
 

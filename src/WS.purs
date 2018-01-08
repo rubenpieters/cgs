@@ -72,7 +72,7 @@ startServer = do
         Just p -> p
         Nothing -> 8080
   log ("binding to port: " <> show parsedPort)
-  wss <- mkServer { port : parsedPort }
+  wss <- mkServer parsedPort
   -- handler when player connects
   (wss `on` SvConnection) (callback1 $ onSocketConnection rsRef wss)
   pure unit
@@ -88,7 +88,7 @@ foreign import data Server :: Type -> Type -> Type
 -- a server sends cmsg :: client messages
 foreign import data Client :: Type -> Type -> Type
 
-foreign import mkServer :: ∀ e cmsg smsg. { port :: Int } -> Eff (ws :: WS | e) (Server cmsg smsg)
+foreign import mkServer :: ∀ e cmsg smsg. Int -> Eff (ws :: WS | e) (Server cmsg smsg)
 
 serverClients :: ∀ e cmsg smsg. (Server cmsg smsg) -> Eff (ws :: WS | e) (Array (Client smsg cmsg))
 serverClients = unsafeForeignFunction ["server", ""] "server.clients"
