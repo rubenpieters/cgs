@@ -6,8 +6,8 @@ var clientPlayerId = 0;
 
 function connectToServer() {
   if (! connected) {
-    //socket = new WebSocket('ws://cgs-proj.herokuapp.com:8080');
-    socket = new WebSocket('ws://localhost:8080');
+    var HOST = location.origin.replace(/^http/, 'ws');
+    socket = new WebSocket(HOST);
     socket.onopen = function() {
       socket.onmessage = onMessage;
       connected = true;
