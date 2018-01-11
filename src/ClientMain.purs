@@ -257,7 +257,10 @@ flipCard c = do
 lockCard :: PlayerId -> ClPack -> Eff _ Unit
 lockCard pid c = do
   c # setPackMode (Locked pid)
-  activateDragTrigger
+  ownPid <- getClientPlayerId
+  if ownPid == pid
+     then activateDragTrigger
+     else pure unit
 
 dropCard :: ClPack -> Eff _ Unit
 dropCard c = do
