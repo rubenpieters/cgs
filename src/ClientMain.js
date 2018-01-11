@@ -88,6 +88,11 @@ exports.setDragTrigger=function(c) {
   };
 };
 
+exports.resetDragTrigger=function() {
+  dragTrigger = { status: "none" };
+  dragTriggerText.text = "none";
+};
+
 // {x :: Int, y :: Int, pack :: Array Card}
 exports.phMkCard=function(o) {
   return function() {

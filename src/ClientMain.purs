@@ -144,6 +144,7 @@ updateGameState es = do
     update (SvRemove gid) = unsafeThrowException (error "unimplemented")
     update (SvFlip gid) = onCard gid flipCard
     update (SvLock gid { pid : pid }) = onCard gid (lockCard pid)
+    update (SvLockDeny) = resetDragTrigger
     update (SvDraw gid p) = onCard gid (drawX p)
     update (SvDrop gid p) = do
       onCard gid phSetVisible
@@ -471,6 +472,7 @@ foldOverlapCard fJust fNothing = do
 
 foreign import activateDragTrigger :: ∀ e. Eff (ph :: PHASER | e) Unit
 foreign import setDragTrigger :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
+foreign import resetDragTrigger :: ∀ e. Eff (ph :: PHASER | e) Unit
 
 foreign import getClientPlayerId :: ∀ e. Eff (ph :: PHASER | e) Int
 foreign import setClientPlayerId :: ∀ e. Int -> Eff (ph ::PHASER | e) Unit

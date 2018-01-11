@@ -306,22 +306,26 @@ function cardInputUp(sprite, pointer) {
 
   console.log("cardInputUp, " + sprite.props.gid);
 
-  const draggedCard = dragTrigger.c;
-  const wasInHand = draggedCard.props.inhand;
-  const droppedInHand = PS.ClientMain.checkOverlap(draggedCard)(playerHandZone);
-  if (wasInHand && droppedInHand) {
-    // client movement only
-    PS.ClientMain.dropCard(draggedCard)();
-  } else if (!wasInHand && droppedInHand) {
-    // send server dropInHand
-    eventBuffer.push(new PS.SharedData.ClToHand(draggedCard.props.gid));
-  } else if (!droppedInHand) {
-    // inform server drop
-    //const draggingDrawnCard = dragTrigger.c.props.gid !== sprite.props.gid;
-    if (dragTrigger.left) {
-      dropCard(draggedCard);
-    } else {
-      eventBuffer.push(new PS.SharedData.ClFlip(sprite.props.gid));
+  // if dragTrigger is none, it means that server denied a lock
+  // and the dragTrigger was reset
+  if (dragTrigger.status != "none") {
+    const draggedCard = dragTrigger.c;
+    const wasInHand = draggedCard.props.inhand;
+    const droppedInHand = PS.ClientMain.checkOverlap(draggedCard)(playerHandZone);
+    if (wasInHand && droppedInHand) {
+      // client movement only
+      PS.ClientMain.dropCard(draggedCard)();
+    } else if (!wasInHand && droppedInHand) {
+      // send server dropInHand
+      eventBuffer.push(new PS.SharedData.ClToHand(draggedCard.props.gid));
+    } else if (!droppedInHand) {
+      // inform server drop
+      //const draggingDrawnCard = dragTrigger.c.props.gid !== sprite.props.gid;
+      if (dragTrigger.left) {
+        dropCard(draggedCard);
+      } else {
+        eventBuffer.push(new PS.SharedData.ClFlip(sprite.props.gid));
+      }
     }
   }
 

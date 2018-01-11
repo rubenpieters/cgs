@@ -216,6 +216,9 @@ drawFromPack n (Pack p) = { remaining : remaining, drawn : drawn }
 lockPack :: PlayerId -> Pack -> Pack
 lockPack pid (Pack p) = Pack $ p { lockedBy = Just pid }
 
+unlockPack :: Pack -> Pack
+unlockPack (Pack p) = Pack $ p { lockedBy = Nothing }
+
 packToHand :: PlayerId -> Pack -> Pack
 packToHand pid (Pack p) = Pack $ p { inHandOf = Just pid }
 
@@ -225,6 +228,7 @@ updateSharedGameState SvGather gs = gs
 updateSharedGameState (SvRemove gid) gs = gs
 updateSharedGameState (SvFlip gid) gs = onGid gid flipTop gs
 updateSharedGameState (SvLock gid { pid: pid }) gs = onGid gid (lockPack pid) gs
+updateSharedGameState (SvLockDeny) gs = gs
 updateSharedGameState (SvDraw gid { amount: amount, newGid: newGid }) gs =
   case (forGid gid (drawFromPack amount) gs) of
     Just { remaining: remaining, drawn: drawn } ->
@@ -239,7 +243,7 @@ updateSharedGameState (SvDraw gid { amount: amount, newGid: newGid }) gs =
       in setGid newGid newPack gs'
     Nothing -> gs
 --    where { remaining: remaining, drawn: drawn } = drawFromPack (gs.cardsById)
-updateSharedGameState (SvDrop gid pos) gs = onGid gid (moveTo (Pos pos)) gs
+updateSharedGameState (SvDrop gid pos) gs = onGid gid (moveTo (Pos pos) >>> unlockPack) gs
 updateSharedGameState (SvDropIn drp { tgt: pk }) gs =
   case (forGid drp (\(Pack p) -> p.cards) gs) of
     Just (cards :: Array Card) ->
@@ -278,6 +282,7 @@ data SvGameEvent = SvSelect Gid
                  | SvRemove Gid
                  | SvFlip Gid
                  | SvLock Gid { pid :: Int }
+                 | SvLockDeny
                  | SvDraw Gid { amount :: Int, newGid :: Int }
                  | SvDrop Gid { x :: Int, y :: Int }
                  | SvDropIn Gid { tgt :: Gid }
