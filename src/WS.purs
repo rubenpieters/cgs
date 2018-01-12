@@ -214,9 +214,18 @@ confirmEvent rsRef pid (ClLock gid) = do
     Nothing -> SvLockDeny
 confirmEvent rsRef pid (ClDraw gid { amount : amount }) = do
   rs <- readRef rsRef
-  let newGid = rs.gidCounter + 1
-  writeRef rsRef (rs {gidCounter = newGid})
-  pure $ SvDraw gid { amount, newGid : newGid}
+  let gidLockedBy = forGid gid (\(Pack p) -> p.lockedBy) rs.gameState
+  log ("locked: " <> show gidLockedBy)
+  case gidLockedBy of
+    -- card is locked by player
+    Just (Just _) -> pure $ SvLockDeny
+    -- card is not locked
+    Just Nothing -> do
+      let newGid = rs.gidCounter + 1
+      writeRef rsRef (rs {gidCounter = newGid})
+      pure $ SvDraw gid { amount, newGid : newGid}
+    -- card does not exist on server
+    Nothing -> pure $ SvLockDeny
 confirmEvent rsRef pid (ClDrop gid pos) = pure $ SvDrop gid pos
 confirmEvent rsRef pid (ClDropIn gid x) = pure $ SvDropIn gid x
 confirmEvent rsRef pid (ClToHand gid) = pure $ SvToHand gid { pid : pid }
