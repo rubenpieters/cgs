@@ -138,6 +138,8 @@ function preload() {
   game.load.image('card', 'assets/card.png');
   game.load.image('menu', 'assets/menu.png');
   game.load.image('empty', 'assets/empty.png');
+  game.load.image('hand', 'assets/hand.png');
+  game.load.image('background_board', 'assets/background_board.png');
 }
 
 function create() {
@@ -150,10 +152,10 @@ function create() {
 
   // Player Hand
 
-  playerHandZone = game.add.sprite(0, playRegionY - handZoneY, 'empty');
+  playerHandZone = game.add.sprite(0, playRegionY - handZoneY, 'hand');
   zoneGroup.add(playerHandZone);
   playerHandZone.height = handZoneY;
-  playerHandZone.width = gameW;
+  playerHandZone.width = playRegionX;
   playerHandZone.tint = 0xd3ffce;
 
   // Menu
@@ -247,6 +249,7 @@ function cycleDraw() {
 function update() {
   if (eventBuffer.length > 0) {
     if (!connected) {
+      // TODO: buffer needs to be converted to Sv messages
       PS.ClientMain.updateGameState(eventBuffer)();
     } else {
       console.log("test: " + PS.ClientMain.showGameEvent(eventBuffer[0]));
@@ -297,8 +300,16 @@ function cardInputDown(sprite, pointer) {
 
   var leftDown = pointer.leftButton.isDown;
   var rightDown = pointer.rightButton.isDown;
+  var middleDown = pointer.middleButton.isDown;
 
-  dragTrigger = { x: pointer.x, y: pointer.y, c: sprite, left: leftDown, right: rightDown };
+  dragTrigger = {
+    x: pointer.x,
+    y: pointer.y,
+    c: sprite,
+    left: leftDown,
+    right: rightDown,
+    middle: middleDown,
+  };
 }
 
 function cardInputUp(sprite, pointer) {
@@ -323,7 +334,7 @@ function cardInputUp(sprite, pointer) {
       //const draggingDrawnCard = dragTrigger.c.props.gid !== sprite.props.gid;
       if (dragTrigger.left) {
         dropCard(draggedCard);
-      } else {
+      } else if (dragTrigger.middle) {
         eventBuffer.push(new PS.SharedData.ClFlip(sprite.props.gid));
       }
     }
