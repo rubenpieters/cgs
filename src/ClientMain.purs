@@ -54,6 +54,7 @@ foreign import hideCardSelectMenu :: ∀ e. Eff (ph :: PHASER | e) Unit
 foreign import checkOverlap :: ClPack -> ClPack -> Boolean
 foreign import gameState :: ∀ e. Eff (ph :: PHASER | e) GameState
 foreign import updateDraggedCard :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
+foreign import handZoneNoHighlight :: ∀ e. Eff (ph :: PHASER | e) Unit
 foreign import isConnected :: ∀ e. Eff (ph :: PHASER | e) Boolean
 foreign import moveCard :: ∀ e. Int -> Int -> ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import setTint :: ∀ e. Int -> ClPack -> Eff (ph :: PHASER | e) Unit
@@ -159,6 +160,7 @@ updateGameState es = do
          then do
            onCard gid dropCard
            onCard gid setInHand
+           handZoneNoHighlight
          else do
            onCard gid phSetInvisible
 

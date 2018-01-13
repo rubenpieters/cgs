@@ -240,6 +240,10 @@ exports.updateDraggedCard=function(card) {
   };
 };
 
+exports.handZoneNoHighlight=function() {
+  playerHandZone.tint = 0xd3ffce;
+};
+
 exports.isConnected=function() {
   return connected;
 };
