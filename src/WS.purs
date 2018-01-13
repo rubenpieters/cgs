@@ -3,10 +3,11 @@ module WS where
 import Prelude
 
 import SharedData
+import ClientMain (gameState)
 
 import Control.Monad.Eff.Console
 import Control.Monad.Eff.Ref
-import Data.Array
+import Data.Array hiding (length)
 import Data.List (List(..))
 import Data.Either
 import Data.Foreign.Callback
@@ -16,14 +17,17 @@ import Data.Traversable
 import Data.Foldable
 import Data.Tuple
 import Data.Map as M
+import Data.String (Pattern(..), split)
 
-import ClientMain (gameState)
-import Control.Monad.Eff (kind Effect, Eff)
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Map as M
+
+import Control.Monad.Eff (kind Effect, Eff)
+
+import Node.Encoding (Encoding(..))
+import Node.FS.Sync (readTextFile)
 
 type RoomState =
   { players :: Array Player
@@ -33,31 +37,29 @@ type RoomState =
   }
 
 emptyRoomState :: RoomState
-emptyRoomState = initialRoomState emptyGameState
+emptyRoomState = initialRoomState [[]]
 
-initialRoomState :: SharedGameState -> RoomState
-initialRoomState gs =
-  { players : []
-  , gameState : gs
-  , playerIdCounter : 0
-  , gidCounter : 0
+initialRoomState :: Array (Array String) -> RoomState
+initialRoomState packs =
+  { players: []
+  , gameState: pgGameState packs
+  , playerIdCounter: 0
+  , gidCounter: length packs
   }
 
-pgGameState :: SharedGameState
-pgGameState = SharedGameState { cardsByGid : pgCards }
+pgGameState :: Array (Array String) -> SharedGameState
+pgGameState packs = SharedGameState { cardsByGid : pgCards packs }
 
-pgCards :: M.Map Int Pack
-pgCards = M.fromFoldable ([
-  Tuple 0 (Pack { gid : 0
-                , cards : cards
-                , position : OnBoard {x : 50, y : 50}
-                , lockedBy : Nothing
-                })
-  ])
+pgCards :: Array (Array String) -> M.Map Int Pack
+pgCards packs = M.fromFoldable (mapWithIndex createPack packs)
   where
-    cards = [ mkCardDown "card" "empty" "card 1"
-            , mkCardDown "card" "empty" "card 2"
-            ]
+    createPack i texts = Tuple i $ Pack
+      { gid: i
+      , cards: cards texts
+      , position: OnBoard {x: 50 + 50 * i, y: 50}
+      , lockedBy: Nothing
+      }
+    cards texts = texts <#> (\x -> mkCardDown "card" "empty" x)
 
 type Player =
   { id :: PlayerId
@@ -65,8 +67,12 @@ type Player =
 
 startServer :: Eff _ Unit
 startServer = do
-  log "Server started"
-  rsRef <- newRef (initialRoomState pgGameState)
+  log "Reading Predefined Cards"
+  ahBaseWhite <- (readTextFile UTF8 "server_assets/ah/base/ah_white.txt") <#> split (Pattern "\n") <#> filter (\x -> x /= "")
+  ahBaseBlack <- (readTextFile UTF8 "server_assets/ah/base/ah_black.txt") <#> split (Pattern "\n") <#> filter (\x -> x /= "")
+  log "Initialzing Rooms"
+  rsRef <- newRef (initialRoomState [ahBaseWhite, ahBaseBlack])
+  log "Starting Server"
   wss <- mkServer { port : 8080 }
   -- handler when player connects
   (wss `on` SvConnection) (callback1 $ onSocketConnection rsRef wss)

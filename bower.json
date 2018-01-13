@@ -16,7 +16,9 @@
     "purescript-argonaut-generic": "^1.2.0",
     "purescript-refs": "^3.0.0",
     "purescript-foreign-callbacks": "*",
-    "purescript-assert": "^3.0.0"
+    "purescript-assert": "^3.0.0",
+    "purescript-node-fs": "^4.0.0",
+    "purescript-strings": "^3.4.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^3.0.0"
