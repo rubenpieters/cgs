@@ -7,8 +7,8 @@ import ClientMain (gameState)
 
 import Control.Monad.Eff.Console
 import Control.Monad.Eff.Ref
-import Data.Array hiding (length)
-import Data.List (List(..))
+import Data.Array hiding (length, catMaybes)
+import Data.List (List(..), catMaybes)
 import Data.Either
 import Data.Foreign.Callback
 import Data.Foreign.EasyFFI
@@ -250,14 +250,14 @@ onDisconnect rsRef toRemoveId = do
   roomState <- readRef rsRef
   let (newPlayers :: Array Player) = filter (\p -> p.id /= toRemoveId) roomState.players
   -- place in hand cards back on field (TODO: only after delay, to allow reconnect?)
-  let (newGS :: SharedGameState) = foldl (\gs gid -> onGid gid (\(Pack p) -> Pack (p {position= OnBoard {x: 0, y:0}})) gs) roomState.gameState (inHandCardsById toRemoveId roomState.gameState)
+  let toDropGids = inHandCardsById toRemoveId roomState.gameState
+  log ("dropping: " <> show toDropGids)
+  let (newGS :: SharedGameState) = foldl (\gs gid -> onGid gid (\(Pack p) -> Pack (p {position= OnBoard {x: 0, y: 0}})) gs) roomState.gameState toDropGids
   -- update ref
   writeRef rsRef (roomState {players = newPlayers, gameState = newGS})
 
 inHandCardsById :: PlayerId -> SharedGameState -> List Gid
-inHandCardsById pid (SharedGameState gs) = case (traverse test (M.values gs.cardsByGid)) of
-  Just l -> l
-  Nothing -> Nil
+inHandCardsById pid (SharedGameState gs) = catMaybes (M.values gs.cardsByGid <#> test)
   where
     test :: Pack -> Maybe Gid
     test (Pack p) = case p.position of
