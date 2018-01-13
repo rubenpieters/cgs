@@ -83,10 +83,9 @@ type PlayerId = Int
 type Gid = Int
 
 -- pack's board position
-data Position = Pos
-  { x :: Int
-  , y :: Int
-  }
+data Position
+  = OnBoard { x :: Int, y :: Int}
+  | InHandOf { pid :: PlayerId }
 
 derive instance genericPosition :: Rep.Generic Position _
 instance encodeJsonPosition :: EncodeJson Position
@@ -98,7 +97,6 @@ instance showPosition :: Show Position
 
 data Pack = Pack
   { position :: Position
-  , inHandOf :: Maybe PlayerId
   | PackInfo
   }
 
@@ -156,24 +154,6 @@ instance showSharedGameState :: Show SharedGameState
 
 type ObfuscatedGameState = SharedGameState
 
-data SharedGameEvent
-  -- flips the direction of the top card in a pack
-  = FlipTop Gid
-  -- move pack to specified position
-  | MoveTo Position Gid
-
-derive instance genericSharedGameEvent :: Rep.Generic SharedGameEvent _
-instance encodeJsonSharedGameEvent :: EncodeJson SharedGameEvent
-  where encodeJson = genericEncodeJson
-instance decodeJsonSharedGameEvent :: DecodeJson SharedGameEvent
-  where decodeJson = genericDecodeJson
-instance showSharedGameEvent :: Show SharedGameEvent
-  where show = genericShow
-
-updateSGE :: SharedGameEvent -> SharedGameState -> SharedGameState
-updateSGE (FlipTop gid) gs = onGid gid flipTop gs
-updateSGE (MoveTo l gid) gs = onGid gid (moveTo l) gs
-
 onGid :: Gid -> (Pack -> Pack) -> SharedGameState -> SharedGameState
 onGid gid f (SharedGameState gs) = case M.lookup gid gs.cardsByGid of
     Just (pack :: Pack) -> SharedGameState gs { cardsByGid = M.update (Just <<< f) gid gs.cardsByGid}
@@ -203,8 +183,8 @@ flipTop (Pack p) = Pack $ case head p.cards of
 flipCard :: Card -> Card
 flipCard (Card c) = Card $ c { faceDir = oppositeDir c.faceDir }
 
-moveTo :: Position -> Pack -> Pack
-moveTo (Pos l) (Pack p) = Pack $ p { position = Pos l }
+dropAt :: {x :: Int, y :: Int} -> Pack -> Pack
+dropAt {x: x, y: y} (Pack p) = Pack $ p { position = OnBoard {x: x, y: y} }
 
 drawFromPack :: Int -> Pack -> {remaining :: Array Card, drawn :: Array Card}
 drawFromPack x _ | x <= 0 = unsafeThrowException (error "drawing <= 0")
@@ -214,13 +194,13 @@ drawFromPack n (Pack p) = { remaining : remaining, drawn : drawn }
     drawn = take n p.cards
 
 lockPack :: PlayerId -> Pack -> Pack
-lockPack pid (Pack p) = Pack $ p { lockedBy = Just pid }
+lockPack pid (Pack p) = Pack $ p { lockedBy= Just pid }
 
 unlockPack :: Pack -> Pack
-unlockPack (Pack p) = Pack $ p { lockedBy = Nothing }
+unlockPack (Pack p) = Pack $ p { lockedBy= Nothing }
 
 packToHand :: PlayerId -> Pack -> Pack
-packToHand pid (Pack p) = Pack $ p { inHandOf = Just pid }
+packToHand pid (Pack p) = Pack $ p { position= InHandOf {pid: pid} }
 
 updateSharedGameState :: SvGameEvent -> SharedGameState -> SharedGameState
 updateSharedGameState (SvSelect gid) gs = gs
@@ -235,15 +215,14 @@ updateSharedGameState (SvDraw gid { amount: amount, newGid: newGid }) gs =
       -- set cards of old pack to remaining cards
       let gs' = onGid gid (\(Pack p) -> Pack $ p { cards= remaining }) gs
       -- create new pack from drawn cards
-          newPack = Pack { position: (Pos { x: 0, y: 0 })
-                         , inHandOf: Nothing
+          newPack = Pack { position: (OnBoard { x: 0, y: 0 })
                          , gid: newGid
                          , cards: drawn
                          , lockedBy: Nothing }
       in setGid newGid newPack gs'
     Nothing -> gs
 --    where { remaining: remaining, drawn: drawn } = drawFromPack (gs.cardsById)
-updateSharedGameState (SvDrop gid pos) gs = onGid gid (moveTo (Pos pos) >>> unlockPack) gs
+updateSharedGameState (SvDrop gid pos) gs = onGid gid (dropAt pos >>> unlockPack) gs
 updateSharedGameState (SvDropIn drp { tgt: pk }) gs =
   case (forGid drp (\(Pack p) -> p.cards) gs) of
     Just (cards :: Array Card) ->

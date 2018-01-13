@@ -303,7 +303,7 @@ exports.phSetVisible=function(o) {
 exports.phSetInvisible=function(o) {
   return function() {
     o.visible = false;
-      o.packText.visible = false;
+    o.packText.visible = false;
   };
 };
 

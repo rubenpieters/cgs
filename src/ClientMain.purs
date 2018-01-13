@@ -427,13 +427,23 @@ data LocalGameState = LocalGameState
   }
 
 materializeCard' :: Pack -> Eff _ ClPack
-materializeCard' (Pack pack) = do
-  let create texture = materializeCard { texture : texture, x : pack.position # \(Pos p) -> p.x, y : pack.position # \(Pos p) -> p.y, size : length pack.cards, pack : pack }
-  case uncons pack.cards of
-    Just { head : card, tail : _} -> do
-      create (card # cardTexture)
-    Nothing -> do
-      create "empty"
+materializeCard' (Pack pack) =
+  case (pack.position) of
+    OnBoard {x: x, y: y} ->
+      let create texture = materializeCard { texture: texture, x: x, y: y, size: length pack.cards, pack: pack } in
+          case uncons pack.cards of
+            Just { head : card, tail : _} -> do
+              create (card # cardTexture)
+            Nothing -> do
+              create "empty"
+    -- TODO: if it is your hand, it should be placed in there
+    -- currently, the server puts your hand back on the board, so this shouldn't occur
+    InHandOf _ ->
+      let create texture = materializeCard { texture: texture, x: 0, y: 0, size: length pack.cards, pack: pack } in
+      do
+        p <- create "empty"
+        phSetInvisible p
+        pure p
 
 materializeState :: ObfuscatedGameState -> Eff _ LocalGameState
 materializeState (SharedGameState gs) = do

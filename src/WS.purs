@@ -1,16 +1,21 @@
 module WS where
 
+import Prelude
+
+import SharedData
+
 import Control.Monad.Eff.Console
 import Control.Monad.Eff.Ref
 import Data.Array
+import Data.List (List(..))
 import Data.Either
 import Data.Foreign.Callback
 import Data.Foreign.EasyFFI
 import Data.Maybe
 import Data.Traversable
+import Data.Foldable
 import Data.Tuple
-import Prelude
-import SharedData
+import Data.Map as M
 
 import ClientMain (gameState)
 import Control.Monad.Eff (kind Effect, Eff)
@@ -45,9 +50,8 @@ pgCards :: M.Map Int Pack
 pgCards = M.fromFoldable ([
   Tuple 0 (Pack { gid : 0
                 , cards : cards
-                , position : Pos {x : 50, y : 50}
+                , position : OnBoard {x : 50, y : 50}
                 , lockedBy : Nothing
-                , inHandOf : Nothing
                 })
   ])
   where
@@ -236,6 +240,22 @@ onDisconnect :: Ref RoomState ->
 onDisconnect rsRef toRemoveId = do
   -- find player to remove
   log ("removing player")
+  -- remove player from room
   roomState <- readRef rsRef
   let (newPlayers :: Array Player) = filter (\p -> p.id /= toRemoveId) roomState.players
-  writeRef rsRef (roomState {players = newPlayers})
+  -- place in hand cards back on field (TODO: only after delay, to allow reconnect?)
+  let (newGS :: SharedGameState) = foldl (\gs gid -> onGid gid (\(Pack p) -> Pack (p {position= OnBoard {x: 0, y:0}})) gs) roomState.gameState (inHandCardsById toRemoveId roomState.gameState)
+  -- update ref
+  writeRef rsRef (roomState {players = newPlayers, gameState = newGS})
+
+inHandCardsById :: PlayerId -> SharedGameState -> List Gid
+inHandCardsById pid (SharedGameState gs) = case (traverse test (M.values gs.cardsByGid)) of
+  Just l -> l
+  Nothing -> Nil
+  where
+    test :: Pack -> Maybe Gid
+    test (Pack p) = case p.position of
+      InHandOf {pid: pid'} -> if pid == pid'
+                      then Just p.gid
+                      else Nothing
+      _ -> Nothing
