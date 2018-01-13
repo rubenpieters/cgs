@@ -269,7 +269,7 @@ function render() {
 }
 
 function updateDragTrigger() {
-  if (dragTrigger.status != "none" && dragTrigger.status != "dragging" && dragTrigger.status != "waiting" && dragTrigger.left) {
+  if (dragTrigger.status != "none" && dragTrigger.status != "dragging" && dragTrigger.status != "waiting" && (dragTrigger.left || dragTrigger.right)) {
     //if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
     //}
     if (PS.ClientMain.cardLocked(dragTrigger.c.props.gid)()) {
@@ -281,7 +281,7 @@ function updateDragTrigger() {
         PS.ClientMain.setDragTrigger(dragTrigger.c)();
       } else {
         // pack not in hand: send server
-        if (dragTrigger.c.props.cards.length <= drawAmount.amount) {
+        if (dragTrigger.right || dragTrigger.c.props.cards.length <= drawAmount.amount) {
           // drawing complete pack = dragging
           eventBuffer.push(new PS.SharedData.ClLock(dragTrigger.c.props.gid));
         } else {
@@ -332,7 +332,7 @@ function cardInputUp(sprite, pointer) {
     } else if (!droppedInHand) {
       // inform server drop
       //const draggingDrawnCard = dragTrigger.c.props.gid !== sprite.props.gid;
-      if (dragTrigger.left) {
+      if (dragTrigger.left || dragTrigger.right) {
         dropCard(draggedCard);
       } else if (dragTrigger.middle) {
         eventBuffer.push(new PS.SharedData.ClFlip(sprite.props.gid));
