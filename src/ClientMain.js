@@ -63,7 +63,7 @@ exports.setProps=function(props) {
 exports.activateDragTrigger=function() {
   //if (dragTrigger.c.pack.dragMode === "drag") {
     dragTrigger.c.props.dragging = true;
-    dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: dragTrigger.c };
+  dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: dragTrigger.c, x: dragTrigger.x, y: dragTrigger.y };
     dragTriggerText.text = "dragging";
     console.log("drag");
   /*} else {
@@ -77,7 +77,7 @@ exports.setDragTrigger=function(c) {
   return function() {
     //if (dragTrigger.c.pack.dragMode === "drag") {
       c.props.dragging = true;
-      dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: c };
+    dragTrigger = { status: "dragging", left: dragTrigger.left, right: dragTrigger.right, c: c, x: dragTrigger.x, y: dragTrigger.y };
       dragTriggerText.text = "dragging";
       console.log("drag");
     /*} else {

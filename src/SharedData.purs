@@ -55,13 +55,15 @@ data Card = Card
   , textureBack :: TextureLoc
   -- direction of card (Up/Down)
   , faceDir :: FaceDir
+  -- card text
+  , cardText :: String
   }
 
-mkCard :: TextureLoc -> TextureLoc -> FaceDir -> Card
-mkCard a b c = Card {textureFront : a, textureBack : b, faceDir : c}
+mkCard :: TextureLoc -> TextureLoc -> FaceDir -> String -> Card
+mkCard a b c d = Card {textureFront: a, textureBack: b, faceDir: c, cardText: d}
 
-mkCardDown :: TextureLoc -> TextureLoc -> Card
-mkCardDown a b = mkCard a b FaceDown
+mkCardDown :: TextureLoc -> TextureLoc -> String -> Card
+mkCardDown a b d = mkCard a b FaceDown d
 
 derive instance genericCard :: Rep.Generic Card _
 instance encodeJsonCard :: EncodeJson Card

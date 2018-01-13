@@ -55,8 +55,8 @@ pgCards = M.fromFoldable ([
                 })
   ])
   where
-    cards = [ mkCardDown "card" "empty"
-            , mkCardDown "card" "empty"
+    cards = [ mkCardDown "card" "empty" "card 1"
+            , mkCardDown "card" "empty" "card 2"
             ]
 
 type Player =

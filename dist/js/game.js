@@ -123,7 +123,8 @@ var globalId = 0;
 
 var allCards = [];
 var draggedCards = [];
-var selectedCards = [];
+//var selectedCards = [];
+var selectedCard;
 
 var gameState = PS.ClientMain.emptyGS;
 var eventBuffer = [];
@@ -270,26 +271,26 @@ function render() {
 
 function updateDragTrigger() {
   if (dragTrigger.status != "none" && dragTrigger.status != "dragging" && dragTrigger.status != "waiting" && (dragTrigger.left || dragTrigger.right)) {
-    //if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
-    //}
-    if (PS.ClientMain.cardLocked(dragTrigger.c.props.gid)()) {
-      // pack is locked: noop
-    } else {
-      // pack is not locked: can draw
-      if (dragTrigger.c.props.inhand) {
-        // pack is in hand: can draw immediately
-        PS.ClientMain.setDragTrigger(dragTrigger.c)();
+    if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
+      if (PS.ClientMain.cardLocked(dragTrigger.c.props.gid)()) {
+        // pack is locked: noop
       } else {
-        // pack not in hand: send server
-        if (dragTrigger.right || dragTrigger.c.props.cards.length <= drawAmount.amount) {
-          // drawing complete pack = dragging
-          eventBuffer.push(new PS.SharedData.ClLock(dragTrigger.c.props.gid));
+        // pack is not locked: can draw
+        if (dragTrigger.c.props.inhand) {
+          // pack is in hand: can draw immediately
+          PS.ClientMain.setDragTrigger(dragTrigger.c)();
         } else {
-          // draw `amount` from pack
-          eventBuffer.push(new PS.SharedData.ClDraw(dragTrigger.c.props.gid, { amount: drawAmount.amount }));
+          // pack not in hand: send server
+          if (dragTrigger.right || dragTrigger.c.props.cards.length <= drawAmount.amount) {
+            // drawing complete pack = dragging
+            eventBuffer.push(new PS.SharedData.ClLock(dragTrigger.c.props.gid));
+          } else {
+            // draw `amount` from pack
+            eventBuffer.push(new PS.SharedData.ClDraw(dragTrigger.c.props.gid, { amount: drawAmount.amount }));
+          }
+          dragTrigger.status = "waiting";
+          dragTriggerText.text = "waiting";
         }
-        dragTrigger.status = "waiting";
-        dragTriggerText.text = "waiting";
       }
     }
   }
@@ -321,22 +322,33 @@ function cardInputUp(sprite, pointer) {
   // and the dragTrigger was reset
   if (dragTrigger.status != "none") {
     const draggedCard = dragTrigger.c;
-    const wasInHand = draggedCard.props.inhand;
-    const droppedInHand = PS.ClientMain.checkOverlap(draggedCard)(playerHandZone);
-    if (wasInHand && droppedInHand) {
-      // client movement only
-      PS.ClientMain.dropCard(draggedCard)();
-    } else if (!wasInHand && droppedInHand) {
-      // send server dropInHand
-      eventBuffer.push(new PS.SharedData.ClToHand(draggedCard.props.gid));
-    } else if (!droppedInHand) {
-      // inform server drop
-      //const draggingDrawnCard = dragTrigger.c.props.gid !== sprite.props.gid;
-      if (dragTrigger.left || dragTrigger.right) {
-        dropCard(draggedCard);
-      } else if (dragTrigger.middle) {
-        eventBuffer.push(new PS.SharedData.ClFlip(sprite.props.gid));
+    // card was dragged
+    console.log("X: " + dragTrigger.x + " -- " + game.input.x);
+    console.log("Y: " + dragTrigger.y + " -- " + game.input.y);
+    if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
+      const wasInHand = draggedCard.props.inhand;
+      const droppedInHand = PS.ClientMain.checkOverlap(draggedCard)(playerHandZone);
+      if (wasInHand && droppedInHand) {
+        // client movement only
+        PS.ClientMain.dropCard(draggedCard)();
+      } else if (!wasInHand && droppedInHand) {
+        // send server dropInHand
+        eventBuffer.push(new PS.SharedData.ClToHand(draggedCard.props.gid));
+      } else if (!droppedInHand) {
+        // inform server drop
+        //const draggingDrawnCard = dragTrigger.c.props.gid !== sprite.props.gid;
+        if (dragTrigger.left || dragTrigger.right) {
+          dropCard(draggedCard);
+        } else if (dragTrigger.middle) {
+          eventBuffer.push(new PS.SharedData.ClFlip(sprite.props.gid));
+        }
       }
+    // card was selected
+    } else {
+      console.log("select: " + draggedCard.props.gid);
+      selectedCard = draggedCard;
+      const packText = PS.ClientMain.packText(draggedCard.props.cards);
+      infoText.text = "gid: " + selectedCard.props.gid + "\n" + packText;
     }
   }
 

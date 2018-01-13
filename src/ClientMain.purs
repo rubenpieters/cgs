@@ -530,3 +530,8 @@ setPackMode packMode c = do
       log ("setting none " <> show props.gid)
       c # setTint 0xffffff
       c # setProps (props { overlapped= false, dragging= false, lockedBy= Nothing })
+
+packText :: Array Card -> String
+packText cards = case uncons cards of
+  Just {head: (Card c), tail: t} -> c.cardText
+  Nothing -> "<empty pack>"
