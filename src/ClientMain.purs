@@ -1,8 +1,10 @@
 module ClientMain where
 
-import SharedData
-
 import Prelude
+
+import SharedData
+import Types
+import Pack
 
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)

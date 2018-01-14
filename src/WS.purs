@@ -3,6 +3,8 @@ module WS where
 import Prelude
 
 import SharedData
+import Types
+import Pack
 import ClientMain (gameState)
 
 import Control.Monad.Eff.Console

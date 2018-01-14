@@ -1,6 +1,8 @@
 module SharedData where
 
 import Prelude
+import Types
+import Pack
 
 import Data.Array
 import Data.Either
@@ -25,100 +27,6 @@ type Player =
   { playerId :: String
   , displayName :: String
   }
-
--- location for texture
--- TODO: currently assumed all textures have String identifier and are loaded by Phaser
-type TextureLoc = String
-
--- direction of card
-data FaceDir = FaceUp | FaceDown
-
-derive instance eqFaceDir :: Eq FaceDir
-derive instance genericFaceDir :: Rep.Generic FaceDir _
-instance encodeJsonFaceDir :: EncodeJson FaceDir
-  where encodeJson = genericEncodeJson
-instance decodeJsonFaceDir :: DecodeJson FaceDir
-  where decodeJson = genericDecodeJson
-instance showFaceDir :: Show FaceDir
-  where show = genericShow
-
-oppositeDir :: FaceDir -> FaceDir
-oppositeDir FaceUp = FaceDown
-oppositeDir FaceDown = FaceUp
-
--- represent a singular card
--- is always part of a pack
-data Card = Card
-  -- texture for card front
-  { textureFront :: TextureLoc
-  -- texture for card back
-  , textureBack :: TextureLoc
-  -- direction of card (Up/Down)
-  , faceDir :: FaceDir
-  -- card text
-  , cardText :: String
-  }
-
-mkCard :: TextureLoc -> TextureLoc -> FaceDir -> String -> Card
-mkCard a b c d = Card {textureFront: a, textureBack: b, faceDir: c, cardText: d}
-
-mkCardDown :: TextureLoc -> TextureLoc -> String -> Card
-mkCardDown a b d = mkCard a b FaceDown d
-
-derive instance genericCard :: Rep.Generic Card _
-instance encodeJsonCard :: EncodeJson Card
-  where encodeJson = genericEncodeJson
-instance decodeJsonCard :: DecodeJson Card
-  where decodeJson = genericDecodeJson
-instance showCard :: Show Card
-  where show = genericShow
-
-cardTexture :: Card -> TextureLoc
-cardTexture (Card c) = case c.faceDir of
-  FaceUp -> c.textureFront
-  FaceDown -> c.textureBack
-
--- player global identifier
-type PlayerId = Int
-
--- pack's global identifier
-type Gid = Int
-
--- pack's board position
-data Position
-  = OnBoard { x :: Int, y :: Int}
-  | InHandOf { pid :: PlayerId }
-
-derive instance genericPosition :: Rep.Generic Position _
-instance encodeJsonPosition :: EncodeJson Position
-  where encodeJson = genericEncodeJson
-instance decodeJsonPosition :: DecodeJson Position
-  where decodeJson = genericDecodeJson
-instance showPosition :: Show Position
-  where show = genericShow
-
-data Pack = Pack
-  { position :: Position
-  | PackInfo
-  }
-
-type PackInfo =
-  ( gid :: Gid
-  , cards :: Array Card
-  , lockedBy :: Maybe PlayerId
-  )
-
-derive instance genericPack :: Rep.Generic Pack _
-
-instance encodeJsonPack :: EncodeJson Pack
-  where encodeJson = genericEncodeJson
-instance decodeJsonPack :: DecodeJson Pack
-  where decodeJson = genericDecodeJson
-instance showPack :: Show Pack
-  where show = genericShow
-
--- frontCard :: Pack -> Card
--- packSize :: Pack -> Int
 
 -- GAME STATE
 
@@ -181,28 +89,6 @@ flipTop (Pack p) = Pack $ case head p.cards of
     otherCards = case tail p.cards of
       Just o -> o
       Nothing -> []
-
-flipCard :: Card -> Card
-flipCard (Card c) = Card $ c { faceDir = oppositeDir c.faceDir }
-
-dropAt :: {x :: Int, y :: Int} -> Pack -> Pack
-dropAt {x: x, y: y} (Pack p) = Pack $ p { position = OnBoard {x: x, y: y} }
-
-drawFromPack :: Int -> Pack -> {remaining :: Array Card, drawn :: Array Card}
-drawFromPack x _ | x <= 0 = unsafeThrowException (error "drawing <= 0")
-drawFromPack n (Pack p) = { remaining : remaining, drawn : drawn }
-  where
-    remaining = drop n p.cards
-    drawn = take n p.cards
-
-lockPack :: PlayerId -> Pack -> Pack
-lockPack pid (Pack p) = Pack $ p { lockedBy= Just pid }
-
-unlockPack :: Pack -> Pack
-unlockPack (Pack p) = Pack $ p { lockedBy= Nothing }
-
-packToHand :: PlayerId -> Pack -> Pack
-packToHand pid (Pack p) = Pack $ p { position= InHandOf {pid: pid} }
 
 updateSharedGameState :: SvGameEvent -> SharedGameState -> SharedGameState
 updateSharedGameState (SvSelect gid) gs = gs
