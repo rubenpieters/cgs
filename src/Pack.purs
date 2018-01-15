@@ -52,7 +52,7 @@ type TextureLoc = String
 data FaceDir = FaceUp | FaceDown
 
 dropAt :: {x :: Int, y :: Int} -> Pack -> Pack
-dropAt {x: x, y: y} (Pack p) = Pack $ p { position = OnBoard {x: x, y: y} }
+dropAt {x: x, y: y} (Pack p) = Pack $ p { position= OnBoard {x: x, y: y} }
 
 packToHand :: PlayerId -> Pack -> Pack
 packToHand pid (Pack p) = Pack $ p { position= InHandOf {pid: pid} }
@@ -85,7 +85,12 @@ mkCardDown :: TextureLoc -> TextureLoc -> String -> Card
 mkCardDown a b d = mkCard a b FaceDown d
 
 flipCard :: Card -> Card
-flipCard (Card c) = Card $ c { faceDir = oppositeDir c.faceDir }
+flipCard (Card c) = Card $ c { faceDir= oppositeDir c.faceDir }
+
+flipTop :: Pack -> Pack
+flipTop (Pack p) = Pack $ case uncons p.cards of
+  Just {head: topCard, tail: tail} -> p { cards= cons (flipCard topCard) tail }
+  Nothing -> p
 
 -- instances
 

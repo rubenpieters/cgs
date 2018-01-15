@@ -5,6 +5,7 @@ import Prelude
 import SharedData
 import Types
 import Pack
+import GameState
 
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)

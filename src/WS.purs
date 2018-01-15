@@ -6,6 +6,7 @@ import SharedData
 import Types
 import Pack
 import ClientMain (gameState)
+import GameState
 
 import Control.Monad.Eff.Console
 import Control.Monad.Eff.Ref
