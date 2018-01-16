@@ -35,15 +35,20 @@ type RoomState =
 startServer :: Eff _ Unit
 startServer = do
   log "Reading Predefined Cards"
-  ahBaseWhite <- (readTextFile UTF8 "server_assets/ah/base/ah_white.txt") <#> split (Pattern "\n") <#> filter (\x -> x /= "")
-  ahBaseBlack <- (readTextFile UTF8 "server_assets/ah/base/ah_black.txt") <#> split (Pattern "\n") <#> filter (\x -> x /= "")
+  ahBaseWhite <- parseFile "server_assets/ah/base/ah_white.txt"
+  ahBaseBlack <- parseFile "server_assets/ah/base/ah_black.txt"
   log "Initialzing Rooms"
   rsRef <- newRef (initialRoomState [ahBaseWhite, ahBaseBlack])
   log "Starting Server"
-  wss <- mkServer { port : 8080 }
+  wss <- mkServer { port: 8080 }
   -- handler when player connects
-  (wss `on` SvConnection) (callback1 $ onSocketConnection rsRef wss)
+  wss # on SvConnection (callback1 $ onSocketConnection rsRef wss)
   pure unit
+    where
+      parseFile path = do
+        content <- readTextFile UTF8 path
+        pure $ content # split (Pattern "\n")
+                       # filter (\x -> x /= "")
 
 onSocketConnection :: Ref RoomState ->
                       (Server ClientMessage ServerMessage) ->
@@ -55,17 +60,17 @@ onSocketConnection rsRef server client = do
   let clientId = roomState.playerIdCounter + 1
   log ("New player has connected: " <> show clientId)
   -- set event handlers
-  (client `on` ClMessage) (callback1 $ onMessage rsRef server client clientId)
-  (client `on` ClClose) (callback0 $ onDisconnect rsRef clientId)
+  client # on ClMessage (callback1 $ onMessage rsRef server client clientId)
+  client # on ClClose (callback0 $ onDisconnect rsRef clientId)
   -- send id to client
-  sendMessage client (ConfirmJoin { assignedId: clientId, roomGameState : roomState.gameState })
+  sendMessage client (ConfirmJoin { assignedId: clientId, roomGameState: roomState.gameState })
   -- update other players
-  broadcast server (NewPlayer { id: clientId }) client
+  broadcast server (NewPlayer { id: clientId }) { except: client }
   -- send all players to new player
   -- TODO: batch into one message?
-  for_ roomState.players (\player -> sendMessage client (NewPlayer { id : player.id }))
+  for_ roomState.players (\player -> sendMessage client (NewPlayer { id: player.id }))
   -- update player list
-  writeRef rsRef (roomState {players = {id: clientId} : roomState.players, playerIdCounter= clientId})
+  writeRef rsRef (roomState { players= {id: clientId} : roomState.players, playerIdCounter= clientId})
 
 onMessage :: Ref RoomState ->
              (Server ClientMessage ServerMessage) ->
@@ -75,10 +80,11 @@ onMessage :: Ref RoomState ->
              Eff _ Unit
 onMessage rsRef server client id message = do
   log ("received message " <> message)
-  let eSvMsg = jsonParser message >>= decodeJson
-  case eSvMsg of
-    Left errs -> log ("malformed message")
-    Right (clMsg :: ClientMessage) -> onClientMessage rsRef server client id clMsg
+  case jsonParser message >>= decodeJson of
+    Left (errs :: String) ->
+      log ("malformed message: " <> errs)
+    Right (clMsg :: ClientMessage) ->
+      onClientMessage rsRef server client id clMsg
 
 onClientMessage :: Ref RoomState ->
                    (Server ClientMessage ServerMessage) ->
@@ -89,7 +95,7 @@ onClientMessage :: Ref RoomState ->
 onClientMessage rsRef server client clientId (ClMoveGid {id: playerId, x: x, y: y}) = do
   -- check if client id == player id?
   log ("player " <> show playerId <> " moving gid, x:" <> show x <> ", y: " <> show y)
-  broadcast server (SvMoveGid {id :playerId, x: x, y: y}) client
+  broadcast server (SvMoveGid { id: playerId, x: x, y: y }) { except: client }
   -- TODO: update gid position in server gamestate?
 onClientMessage rsRef server client clientId (ClGameStateUpdate {events: events}) = do
   log ("events: " <> show events)
@@ -97,8 +103,8 @@ onClientMessage rsRef server client clientId (ClGameStateUpdate {events: events}
   roomState <- readRef rsRef
   let updatedGameState = foldr updateSharedGameState roomState.gameState confirmedEvents
   writeRef rsRef (roomState { gameState= updatedGameState })
-  sendMessage client (ConfirmUpdates {events: confirmedEvents})
-  broadcast server (ConfirmUpdates {events: confirmedEvents}) client
+  sendMessage client (ConfirmUpdates { events: confirmedEvents })
+  broadcast server (ConfirmUpdates { events: confirmedEvents }) { except: client }
 
 confirmEvent :: Ref RoomState ->
                 PlayerId ->
@@ -116,10 +122,10 @@ confirmEvent rsRef pid (ClLock gid) = do
     -- card is locked by player
     Just (Just _) -> SvLockDeny
     -- card is not locked
-    Just Nothing -> SvLock gid { pid : pid }
+    Just Nothing -> SvLock gid { pid: pid }
     -- card does not exist on server
     Nothing -> SvLockDeny
-confirmEvent rsRef pid (ClDraw gid { amount : amount }) = do
+confirmEvent rsRef pid (ClDraw gid { amount: amount }) = do
   rs <- readRef rsRef
   let gidLockedBy = forGid gid (\(Pack p) -> p.lockedBy) rs.gameState
   log ("locked: " <> show gidLockedBy)
@@ -130,12 +136,12 @@ confirmEvent rsRef pid (ClDraw gid { amount : amount }) = do
     Just Nothing -> do
       let newGid = rs.gidCounter + 1
       writeRef rsRef (rs {gidCounter = newGid})
-      pure $ SvDraw gid { amount, newGid : newGid}
+      pure $ SvDraw gid { amount, newGid: newGid}
     -- card does not exist on server
     Nothing -> pure $ SvLockDeny
 confirmEvent rsRef pid (ClDrop gid pos) = pure $ SvDrop gid pos
 confirmEvent rsRef pid (ClDropIn gid x) = pure $ SvDropIn gid x
-confirmEvent rsRef pid (ClToHand gid) = pure $ SvToHand gid { pid : pid }
+confirmEvent rsRef pid (ClToHand gid) = pure $ SvToHand gid { pid: pid }
 
 onDisconnect :: Ref RoomState ->
                 Int ->
@@ -151,14 +157,7 @@ onDisconnect rsRef toRemoveId = do
   -- update ref
   writeRef rsRef (roomState {players= newPlayers, gameState= newGS})
 
-dropPack :: PlayerId -> Pack -> Pack
-dropPack pid (Pack p) = case Tuple p.position p.lockedBy of
-  Tuple (InHandOf {pid: pid'}) _ | pid == pid' ->
-    Pack $ p {position= OnBoard {x: 0, y: 0}, lockedBy= Nothing}
-  Tuple _ (Just pid') | pid == pid' ->
-    Pack $ p {position= OnBoard {x: 0, y: 0}, lockedBy= Nothing}
-  _ ->
-    Pack p
+-- helper functions for initial state
 
 emptyRoomState :: RoomState
 emptyRoomState = initialRoomState [[]]
@@ -172,7 +171,7 @@ initialRoomState packs =
   }
 
 pgGameState :: Array (Array String) -> SharedGameState
-pgGameState packs = SharedGameState { cardsByGid : pgCards packs }
+pgGameState packs = SharedGameState { cardsByGid: pgCards packs }
 
 pgCards :: Array (Array String) -> M.Map Int Pack
 pgCards packs = M.fromFoldable (mapWithIndex createPack packs)

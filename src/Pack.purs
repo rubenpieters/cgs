@@ -66,6 +66,15 @@ lockPack pid (Pack p) = Pack $ p { lockedBy= Just pid }
 unlockPack :: Pack -> Pack
 unlockPack (Pack p) = Pack $ p { lockedBy= Nothing }
 
+dropPack :: PlayerId -> Pack -> Pack
+dropPack pid (Pack p) = case Tuple p.position p.lockedBy of
+  Tuple (InHandOf {pid: pid'}) _ | pid == pid' ->
+    Pack $ p {position= OnBoard {x: 0, y: 0}, lockedBy= Nothing}
+  Tuple _ (Just pid') | pid == pid' ->
+    Pack $ p {position= OnBoard {x: 0, y: 0}, lockedBy= Nothing}
+  _ ->
+    Pack p
+
 cardTexture :: Card -> TextureLoc
 cardTexture (Card c) = case c.faceDir of
   FaceUp -> c.textureFront
