@@ -1,13 +1,10 @@
 module GameState where
 
-import Prelude
 import Types
 import Pack
 
 import Data.Map as M
-import Data.Maybe
 import Data.Traversable (traverse)
-import Data.Tuple (uncurry)
 
 import Data.Argonaut.Decode.Class (class DecodeJson)
 import Data.Argonaut.Decode.Generic.Rep (genericDecodeJson)
@@ -40,6 +37,10 @@ forCards (SharedGameState state) f = traverse (uncurry f) tupleList
 
 -- obfuscateSharedState :: SharedGameState -> ObfuscatedState
 
+mapCards :: (Pack -> Pack) -> SharedGameState -> SharedGameState
+mapCards f (SharedGameState gs) =
+  SharedGameState $ gs {cardsByGid= gs.cardsByGid <#> f}
+
 onGid :: Gid -> (Pack -> Pack) -> SharedGameState -> SharedGameState
 onGid gid f (SharedGameState gs)= case M.lookup gid gs.cardsByGid of
     Just (pack :: Pack) -> SharedGameState gs { cardsByGid = M.update (Just <<< f) gid gs.cardsByGid}
@@ -47,7 +48,7 @@ onGid gid f (SharedGameState gs)= case M.lookup gid gs.cardsByGid of
     Nothing -> SharedGameState gs
 
 forGid :: ∀ a. Gid -> (Pack -> a) -> SharedGameState -> Maybe a
-forGid gid f (SharedGameState gs)= f <$> M.lookup gid gs.cardsByGid
+forGid gid f (SharedGameState gs) = f <$> M.lookup gid gs.cardsByGid
 
 setGid :: Gid -> Pack -> SharedGameState -> SharedGameState
 setGid gid pack (SharedGameState gs) =

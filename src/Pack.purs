@@ -1,11 +1,8 @@
 module Pack where
 
-import Prelude
-
 import Types
 
 import Data.Array
-import Data.Maybe
 
 import Data.Argonaut.Decode.Class (class DecodeJson)
 import Data.Argonaut.Decode.Generic.Rep (genericDecodeJson)
@@ -103,6 +100,7 @@ instance showPack :: Show Pack
   where show = genericShow
 
 derive instance genericPosition :: Rep.Generic Position _
+derive instance eqPosition :: Eq Position
 instance encodeJsonPosition :: EncodeJson Position
   where encodeJson = genericEncodeJson
 instance decodeJsonPosition :: DecodeJson Position

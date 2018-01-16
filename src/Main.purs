@@ -1,10 +1,8 @@
 module Main where
 
-import Prelude
+import Types
 
-import WS
-
-import Control.Monad.Eff
+import Server
 
 main :: Eff _ Unit
 main = startServer

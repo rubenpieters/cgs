@@ -1,9 +1,7 @@
 module ClientMain where
 
-import Prelude
-
-import SharedData
 import Types
+import SharedData
 import Pack
 import GameState
 
@@ -11,9 +9,6 @@ import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode.Class (class EncodeJson, encodeJson)
 import Data.Argonaut.Parser (jsonParser)
-import Data.Maybe
-import Data.Either
-import Data.Tuple
 import Data.Array (toUnfoldable, fromFoldable, uncons, cons, take, drop)
 import Data.List hiding (null, length)
 import Data.Map as M
@@ -26,7 +21,6 @@ import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
 import Control.Monad.Except.Trans (runExceptT)
 
-import Data.Either
 import Data.List.NonEmpty (NonEmptyList)
 import Data.Newtype (unwrap)
 import Data.Foreign
