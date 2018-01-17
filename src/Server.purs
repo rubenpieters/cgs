@@ -32,12 +32,55 @@ type RoomState =
   , gidCounter :: Int
   }
 
+{-
+startServer' :: forall f server client e r.
+               { log :: String -> f Unit
+               , initializeRooms :: f (Ref RoomState)
+               , initializeServer :: f server
+               , onPlayerConnect :: (client -> Eff e Unit) -> f Unit
+               | r } ->
+               f Unit
+startServer' k = do
+  k.log "Initializing Rooms"
+  roomStates <- k.initializeRooms
+  k.log "Starting Server"
+  server <- k.initializeServer
+  k.onPlayerConnect (onSocketConnection' k roomStates server)
+
+onSocketConnection' :: forall f server client ref e1 e2 r.
+                       { log :: String -> f Unit
+                       , createNewPlayerId :: f PlayerId
+                       , onClMessageReceived :: (Eff e1 Unit) -> f Unit
+                       , onClDisconnect :: (Eff e2 Unit) -> f Unit
+                       | r } ->
+                       Ref RoomState ->
+                       server ->
+                       client ->
+                       f Unit
+onSocketConnection' k rsRef server client = do
+  -- read roomState
+  newPlayerId <- k.createNewPlayerId
+  k.log ("New player has connected: " <> show newPlayerId)
+  -- set event handlers
+  client # on ClMessage (callback1 $ onMessage rsRef server client clientId)
+  client # on ClClose (callback0 $ onDisconnect rsRef clientId)
+  -- send id to client
+  sendMessage client (ConfirmJoin { assignedId: clientId, roomGameState: roomState.gameState })
+  -- update other players
+  broadcast server (NewPlayer { id: clientId }) { except: client }
+  -- send all players to new player
+  -- TODO: batch into one message?
+  for_ roomState.players (\player -> sendMessage client (NewPlayer { id: player.id }))
+  -- update player list
+  writeRef rsRef (roomState { players= {id: clientId} : roomState.players, playerIdCounter= clientId})
+-}
+
 startServer :: Eff _ Unit
 startServer = do
   log "Reading Predefined Cards"
   ahBaseWhite <- parseFile "server_assets/ah/base/ah_white.txt"
   ahBaseBlack <- parseFile "server_assets/ah/base/ah_black.txt"
-  log "Initialzing Rooms"
+  log "Initializing Rooms"
   rsRef <- newRef (initialRoomState [ahBaseWhite, ahBaseBlack])
   log "Starting Server"
   wss <- mkServer { port: 8080 }
