@@ -18,6 +18,12 @@ import Control.Monad.Eff.Console (log, logShow)
 
 import Test.Assert
 
+import Unsafe.Coerce
+import Server
+import Control.Monad.Eff.Console (CONSOLE)
+import Control.Monad.Eff.Ref
+import Test.Expect
+
 testGs :: SharedGameState
 testGs = SharedGameState { cardsByGid: testCards }
 
@@ -71,7 +77,50 @@ testCards_drop = M.fromFoldable ([
     cards2 = [ mkCardDown "c1" "_" ""
              ]
 
+testRoom = newRef (initialRoomState [[]])
+testE1 e map =
+  { log: \_ -> pure unit
+  , onClMessage: \_ _ -> pure unit
+  , onClDisconnect: \_ _ -> pure unit
+  , sendMessage: \m c -> do
+      log ("sendMessage: " <> (show m) <> " -- to " <> c)
+      r <- expectLayerM m "send" e map
+      log ("expectResult: " <> show r)
+      assert' ("no match: " <> show r) (isMatch r)
+  , broadcast: \m { except: c } s -> do
+      log ("broadcast: " <> (show m) <> " except: " <> c <> " -- from " <> s)
+      r <- expectLayerM m "bc" e map
+      log ("expectResult: " <> show r)
+      assert' ("no match: " <> show r) (isMatch r)
+  }
 
+expectTest1 =
+  Expect [mkE confirmJoinMsg "confirm1_1" "send", mkE newPlayerMsg "bc1" "bc"] $
+  Verify ["confirm1_1", "bc1"] verifySameId $
+  Expect [mkE confirmJoinMsg "confirm2_2" "send", mkE newPlayerMsg "newPlayer1_2" "send", mkE newPlayerMsg "bc2" "bc"] $
+  Verify ["confirm1_1", "confirm2_2"] verifyDiffId $
+  Verify ["confirm2_2", "bc2"] verifySameId $
+  Done
+  where
+    confirmJoinMsg (ConfirmJoin _) = true
+    confirmJoinMsg _ = false
+    newPlayerMsg (NewPlayer _) = true
+    newPlayerMsg _ = false
+    verifySameId [ConfirmJoin { assignedId: x }, NewPlayer { id: y }] = x == y
+    verifySameId _ = false
+    verifyDiffId [ConfirmJoin { assignedId: x }, ConfirmJoin { assignedId: y }] = x /= y
+    verifyDiffId _ = false
+
+
+testOnConn :: Eff _ Unit
+testOnConn = do
+  r <- testRoom
+  e <- newRef expectTest1
+  map <- newRef M.empty
+  onSocketConnection (testE1 e map) r ("SERVER") ("NEW_CLIENT_1")
+  onSocketConnection (testE1 e map) r ("SERVER") ("NEW_CLIENT_2")
+  ex <- readRef e
+  assert' "expected more messages" (ex # isDone)
 
 main :: Eff _ Unit
 main = do
@@ -83,10 +132,12 @@ main = do
       logShow cards
       assert (cardAmt == 4)
     Nothing -> assert' "no gid 0" false
-  let testGs2 = updateCards (dropPack 1) testGs_drop
+  let testGs2 = mapCards (dropPack 1) testGs_drop
   let pos0 = (forGid 0 (\(Pack p) -> p.position) testGs2)
   assert (pos0 == Just (OnBoard {x: 0, y: 0}))
   let pos1 = (forGid 1 (\(Pack p) -> p.position) testGs2)
   assert (pos1 == Just (OnBoard {x: 0, y: 0}))
   let pos2 = (forGid 2 (\(Pack p) -> p.position) testGs2)
   assert (pos2 == Just (OnBoard {x: 50, y: 50}))
+  log ("testOnConn")
+  testOnConn
