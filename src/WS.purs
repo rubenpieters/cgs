@@ -39,23 +39,20 @@ serverClients :: ∀ e cmsg smsg. (Server cmsg smsg) -> Eff (ws :: WS | e) (Arra
 serverClients = unsafeForeignFunction ["server", ""] "server.clients"
 
 sendMessage :: ∀ e cmsg smsg. (EncodeJson smsg) =>
-               (Client smsg cmsg) -> smsg -> Eff (ws :: WS, console :: CONSOLE | e) Unit
-sendMessage client msg = do
-  let test = unsafeForeignFunction ["x", ""] "typeof x"
-  testVal <- test client
-  log ("test_sendMessage: " <> testVal)
-  unsafeSendMessage client (stringify $ encodeJson msg)
+               smsg -> (Client smsg cmsg) -> Eff (ws :: WS, console :: CONSOLE | e) Unit
+sendMessage msg client = do
+  client # unsafeSendMessage (stringify $ encodeJson msg)
 
-foreign import unsafeSendMessage :: ∀ e cmsg smsg. (Client cmsg smsg) -> String -> Eff (ws :: WS | e) Unit
+foreign import unsafeSendMessage :: ∀ e cmsg smsg. String -> (Client cmsg smsg) -> Eff (ws :: WS | e) Unit
 
 broadcast :: ∀ e cmsg smsg. (EncodeJson smsg) =>
-             (Server cmsg smsg) -> smsg -> {except :: (Client smsg cmsg)} -> Eff (ws :: WS, console :: CONSOLE | e) Unit
-broadcast server msg {except: exceptClient} = unsafeBroadcast server (stringify $ encodeJson msg) exceptClient
+             smsg -> {except :: (Client smsg cmsg)} -> (Server cmsg smsg) -> Eff (ws :: WS, console :: CONSOLE | e) Unit
+broadcast msg {except: exceptClient} server = server # unsafeBroadcast (encodeJson msg # stringify) exceptClient
 --broadcast server msg exceptClient = do
 --  clients <- serverClients server
 --  for_ clients (\c -> sendMessage c msg)
 
-foreign import unsafeBroadcast :: ∀ e cmsg smsg. (Server cmsg smsg) -> String -> (Client smsg cmsg) -> Eff (ws :: WS | e) Unit
+foreign import unsafeBroadcast :: ∀ e cmsg smsg. String -> (Client smsg cmsg) -> (Server cmsg smsg) -> Eff (ws :: WS | e) Unit
 
 
 data SvConnection = SvConnection
@@ -88,7 +85,30 @@ instance clMessageListener :: WsListener (Client smsg cmsg) ClMessage (Callback1
 instance clCloseListener :: WsListener (Client smsg cmsg) ClClose (Callback0 Unit) where
   on = unsafeOn
 
--- cb is an impure callback
+-- cb should be an impure callback
 unsafeOn :: ∀ o cb e msg. (WsEvent msg) => msg -> cb -> o -> Eff (ws :: WS | e) Unit
 unsafeOn msg cb obj = unsafeForeignProcedure ["event", "cb","obj", ""] "obj.on(event, cb);" (eventStr msg) cb obj
 
+
+-- MTL
+
+-- cb should be an impure callback
+unsafeOn' :: ∀ o cb e. String -> cb -> o -> Eff (ws :: WS | e) Unit
+unsafeOn' msg cb obj = unsafeForeignProcedure ["event", "cb","obj", ""] "obj.on(event, cb);" msg cb obj
+
+
+initializeServer :: forall cmsg smsg.
+                    { port :: Int } -> Eff _ (Server cmsg smsg)
+initializeServer config = mkServer config
+
+onClConnect :: forall e cmsg smsg.
+               (Client smsg cmsg -> Eff e Unit) -> Server cmsg smsg -> Eff _ Unit
+onClConnect cb server = unsafeOn' "connection" (callback1 cb) server
+
+onClMessage :: forall e cmsg smsg.
+               (String -> Eff e Unit) -> Client smsg cmsg -> Eff _ Unit
+onClMessage cb server = unsafeOn' "message" (callback1 cb) server
+
+onClDisconnect :: forall e cmsg smsg.
+                  (Eff e Unit) -> Client smsg cmsg -> Eff _ Unit
+onClDisconnect cb server = unsafeOn' "close" (callback0 cb) server

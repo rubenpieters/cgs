@@ -8,8 +8,8 @@ exports.mkServer = function(config){
   };
 };
 
-const unsafeSendMessage = function(client) {
-  return function(data) {
+const unsafeSendMessage = function(data) {
+  return function(client) {
     return function() {
       if (client.readyState === WebSocket.OPEN) {
         console.log("sending: " + data);
@@ -21,9 +21,9 @@ const unsafeSendMessage = function(client) {
 
 exports.unsafeSendMessage = unsafeSendMessage;
 
-exports.unsafeBroadcast = function(server) {
-  return function(data) {
-    return function(exceptClient) {
+exports.unsafeBroadcast = function(data) {
+  return function(exceptClient) {
+    return function(server) {
       return function() {
         server.clients.forEach(function(client) {
           if (client !== exceptClient) {
