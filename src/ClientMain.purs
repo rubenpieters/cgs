@@ -4,6 +4,7 @@ import Types
 import SharedData
 import Pack
 import GameState
+import Shuffle
 
 import Data.Argonaut.Core (stringify)
 import Data.Argonaut.Decode.Class (class DecodeJson, decodeJson)
@@ -142,6 +143,9 @@ updateGameState es = do
     update (SvRemove gid) = unsafeThrowException (error "unimplemented")
     update (SvFlip gid) = onCard gid flipCard
     update (SvLock gid { pid : pid }) = onCard gid (lockCard pid)
+    -- TODO: do all players see lock denies?
+    -- either add a playerId or send only to relevant player
+    -- idem for action denies
     update (SvLockDeny) = resetDragTrigger
     update (SvDraw gid p) = onCard gid (drawX p)
     update (SvDrop gid p) = do
@@ -149,7 +153,6 @@ updateGameState es = do
       onCard gid (phSetPos p)
       onCard gid dropCard
       onCard gid setInField
-    -- TODO: connected clients dont see DropIn event
     update (SvDropIn drp { tgt: pk }) = onCard2 pk drp dropInCard
     update (SvToHand gid { pid: pid }) = do
       ownPid <- getClientPlayerId
@@ -160,6 +163,8 @@ updateGameState es = do
            handZoneNoHighlight
          else do
            onCard gid phSetInvisible
+    update (SvShuffle gid { seed: seed }) = pure unit
+    update (SvActionDeny _) = pure unit
 
 updateCards :: Eff _ Unit
 updateCards = do
@@ -276,6 +281,11 @@ dropInCard pk drp = do
   pk # setPackMode None
   phKill drp
   clearOverlapCard
+
+shufflePack :: String -> ClPack -> Eff _ Unit
+shufflePack seed pack = do
+  packProps <- pack # getProps
+  pack # setCards (shuffle seed packProps.cards)
 
 drawX :: { amount :: Int, newGid :: Int } -> ClPack -> Eff _ Unit
 drawX { amount : x, newGid : newGid } c = do

@@ -82,7 +82,6 @@ testMultExpect lf a tag = case uncons lf of
                     { result: r, newArray: cons (mkE f str tag') n }
   Nothing -> { result: Fail, newArray: [] }
 
-
 expectLayerM :: forall a. a -> String -> Ref (Expect a) -> Ref (M.Map String a) -> Eff _ (LayerResult a)
 expectLayerM a tag ref mapRef = do
   e <- readRef ref

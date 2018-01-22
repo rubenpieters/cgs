@@ -236,6 +236,10 @@ function create() {
   // Key - B - cycle left mode
   var keyB = game.input.keyboard.addKey(Phaser.Keyboard.B);
   keyB.onDown.add(cycleDraw);
+
+  // Key - S - shuffle
+  var keyS = game.input.keyboard.addKey(Phaser.Keyboard.S);
+  keyS.onDown.add(shufflePack);
 }
 
 function cycleDraw() {
@@ -245,6 +249,12 @@ function cycleDraw() {
     drawAmount.amount = 1;
   }
   drawAmountText.text = drawAmount.amount;
+};
+
+function shufflePack() {
+  if (typeof selectedCard !== "undefined") {
+    eventBuffer.push(new PS.SharedData.ClShuffle(selectedCard.props.gid));
+  }
 };
 
 function update() {

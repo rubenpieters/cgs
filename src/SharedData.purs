@@ -3,6 +3,7 @@ module SharedData where
 import Types
 import Pack
 import GameState
+import Shuffle
 
 import Data.Array
 import Data.Foldable
@@ -54,6 +55,13 @@ updateSharedGameState (SvDropIn drp { tgt: pk }) gs =
       in removeGid drp gs'
     Nothing -> gs
 updateSharedGameState (SvToHand gid { pid: pid }) gs = onGid gid (packToHand pid) gs
+updateSharedGameState (SvShuffle gid { seed: seed }) gs =
+  case (forGid gid id gs) of
+    Just (Pack pack) ->
+      let shuffled = shuffle seed pack.cards
+      in setGid gid (Pack (pack {cards= shuffled})) gs
+    Nothing -> gs
+updateSharedGameState (SvActionDeny _) gs = gs
 
 -- CLIENT GAME EVENT
 -- client sends to server
@@ -67,6 +75,7 @@ data ClGameEvent = ClSelect Gid
                  | ClDrop Gid { x :: Int, y :: Int }
                  | ClDropIn Gid { tgt :: Gid }
                  | ClToHand Gid
+                 | ClShuffle Gid
 
 -- SERVER GAME EVENT
 -- server sends to client
@@ -82,6 +91,8 @@ data SvGameEvent = SvSelect Gid
                  | SvDrop Gid { x :: Int, y :: Int }
                  | SvDropIn Gid { tgt :: Gid }
                  | SvToHand Gid { pid :: Int }
+                 | SvShuffle Gid { seed :: String }
+                 | SvActionDeny Gid
 
 -- messages server -> client
 data ServerMessage

@@ -174,6 +174,18 @@ confirmEvent k rsRef pid (ClDraw gid { amount: amount }) = do
 confirmEvent k rsRef pid (ClDrop gid pos) = pure $ SvDrop gid pos
 confirmEvent k rsRef pid (ClDropIn gid x) = pure $ SvDropIn gid x
 confirmEvent k rsRef pid (ClToHand gid) = pure $ SvToHand gid { pid: pid }
+confirmEvent k rsRef pid (ClShuffle gid) = do
+  rs <- readRef rsRef
+  let gidLockedBy = forGid gid (\(Pack p) -> p.lockedBy) rs.gameState
+  k.log ("locked: " <> show gidLockedBy)
+  case gidLockedBy of
+    -- card is locked by player
+    Just (Just _) -> pure $ SvActionDeny gid
+    -- card is not locked
+    Just Nothing -> do
+      pure $ SvShuffle gid { seed: "1" }
+    -- card does not exist on server
+    Nothing -> pure $ SvActionDeny gid
 
 onDisconnect :: forall f ref r.
                 (Monad f) =>
