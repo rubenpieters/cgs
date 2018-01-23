@@ -119,6 +119,9 @@ PS.ClientMain.clearOverlapCard();
 var overlapDropMenu;
 var playerHandZone;
 
+var hotbarBtnShufflePack;
+var hotbarBtnShufflePackText;
+
 var globalId = 0;
 
 var allCards = [];
@@ -166,12 +169,14 @@ function create() {
   bottomMenu.height = botMenH;
   bottomMenu.width = gameW;
 
-  // - bottom - create card button
-  var button = game.add.button(10, playRegionY + 10, 'empty', PS.ClientMain.phMkCard({x: 100, y: 100, pack: [PS.ClientMain.newCard]}), this, 2, 1, 0);
-  button.height = 20;
-  button.width = 50;
+  // - bottom - shuffle pack button
+  hotbarBtnShufflePack = game.add.button(10, playRegionY + 10, 'empty', shufflePack, this, 2, 1, 0);
+  hotbarBtnShufflePack.height = 20;
+  hotbarBtnShufflePack.width = 50;
+  hotbarBtnShufflePack.visible = false;
   var style = { font: "10px Arial", fill: "#000000", align: "center" };
-  game.add.text(12, playRegionY + 15, "Add Card", style);
+  hotbarBtnShufflePackText = game.add.text(12, playRegionY + 15, "Shuffle", style);
+  hotbarBtnShufflePackText.visible = false;
 
   // - bottom - card properties buttons
   cardDragProp = game.add.sprite(100, playRegionY + 10, 'empty');
@@ -359,6 +364,8 @@ function cardInputUp(sprite, pointer) {
       selectedCard = draggedCard;
       const packText = PS.ClientMain.packText(draggedCard.props.cards);
       infoText.text = "gid: " + selectedCard.props.gid + "\n" + packText;
+      hotbarBtnShufflePack.visible = true;
+      hotbarBtnShufflePackText.visible = true;
     }
   }
 

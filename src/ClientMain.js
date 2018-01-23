@@ -323,6 +323,8 @@ exports.setCards=function(cards) {
     return function() {
       c.props.cards = cards;
       c.packText.setText(c.props.cards.length);
+      const packText = PS.ClientMain.packText(cards);
+      infoText.text = "gid: " + selectedCard.props.gid + "\n" + packText;
     };
   };
 };

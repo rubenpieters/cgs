@@ -163,7 +163,7 @@ updateGameState es = do
            handZoneNoHighlight
          else do
            onCard gid phSetInvisible
-    update (SvShuffle gid { seed: seed }) = pure unit
+    update (SvShuffle gid { seed: seed }) = onCard gid (shufflePack seed)
     update (SvActionDeny _) = pure unit
 
 updateCards :: Eff _ Unit
