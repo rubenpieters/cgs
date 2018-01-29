@@ -142,7 +142,7 @@ updateGameState es = do
     update SvGather = unsafeThrowException (error "unimplemented")
     update (SvRemove gid) = unsafeThrowException (error "unimplemented")
     update (SvFlip gid) = onCard gid flipCard
-    update (SvLock gid { pid : pid }) = onCard gid (lockCard pid)
+    update (SvLock gid { pid: pid }) = onCard gid (lockCard pid)
     -- TODO: do all players see lock denies?
     -- either add a playerId or send only to relevant player
     -- idem for action denies

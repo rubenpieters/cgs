@@ -31,8 +31,8 @@ updateSharedGameState :: SvGameEvent -> SharedGameState -> SharedGameState
 updateSharedGameState (SvSelect gid) gs = gs
 updateSharedGameState SvGather gs = gs
 updateSharedGameState (SvRemove gid) gs = gs
-updateSharedGameState (SvFlip gid) gs = onGid gid flipTop gs
-updateSharedGameState (SvLock gid { pid: pid }) gs = onGid gid (lockPack pid) gs
+updateSharedGameState (SvFlip gid) gs = onGid gid (\(Pack p) -> Pack (flipTop p)) gs
+updateSharedGameState (SvLock gid { pid: pid }) gs = onGid gid (\(Pack p) -> Pack (lockPack pid p)) gs
 updateSharedGameState (SvLockDeny) gs = gs
 updateSharedGameState (SvDraw gid { amount: amount, newGid: newGid }) gs =
   case (forGid gid (drawFromPack amount) gs) of
@@ -139,3 +139,45 @@ instance decodeClientMessage :: DecodeJson ClientMessage
   where decodeJson = genericDecodeJson
 instance showClientMessage :: Show ClientMessage
   where show = genericShow
+
+-- TODO: move definitions to correct module
+
+type PackData r =
+  { gid :: Gid
+  , cards :: Array Card
+  , lockedBy :: Maybe PlayerId
+  | r
+  }
+
+-- WIP creating generalization of server and client update gamestate functions
+genericUpdate :: forall pack f a r.
+                 (Monad f) =>
+                 { log :: String -> f Unit
+                 , packByGid :: Gid -> f pack
+                 , getPackData :: pack -> f (PackData r)
+                 , setPackData :: (PackData r) -> pack -> f Unit
+                 } ->
+                 SvGameEvent ->
+                 f Unit
+genericUpdate k (SvFlip gid) = do
+  pack <- k.packByGid gid
+  packData <- pack # k.getPackData
+  pack # k.setPackData (f packData)
+  where
+    f = flipTop
+genericUpdate k (SvLock gid { pid: pid }) = do
+  pack <- k.packByGid gid
+  packData <- pack # k.getPackData
+  pack # k.setPackData (f packData)
+  where
+    f = lockPack pid
+genericUpdate k (SvLockDeny) = do
+  pure unit -- TODO: should denying locks/actions be separate?
+genericUpdate k (SvActionDeny _) = do
+  pure unit
+genericUpdate k (SvDraw gid { amount: amount, newGid: newGid }) = do
+  pack <- k.packByGid gid
+  -- 
+  pure unit
+genericUpdate k _ = pure unit
+

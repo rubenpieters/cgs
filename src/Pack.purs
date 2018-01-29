@@ -60,8 +60,8 @@ drawFromPack x (Pack p) | x <= 0 =
 drawFromPack n (Pack p) =
   { remaining: p.cards # drop n, drawn: p.cards # take n }
 
-lockPack :: PlayerId -> Pack -> Pack
-lockPack pid (Pack p) = Pack $ p { lockedBy= Just pid }
+--lockPack :: PlayerId -> Pack -> Pack
+lockPack pid p = p { lockedBy= Just pid }
 
 unlockPack :: Pack -> Pack
 unlockPack (Pack p) = Pack $ p { lockedBy= Nothing }
@@ -93,8 +93,8 @@ mkCardDown a b d = mkCard a b FaceDown d
 flipCard :: Card -> Card
 flipCard (Card c) = Card $ c { faceDir= oppositeDir c.faceDir }
 
-flipTop :: Pack -> Pack
-flipTop (Pack p) = Pack $ case uncons p.cards of
+--flipTop :: Pack -> Pack
+flipTop p = case uncons p.cards of
   Just {head: topCard, tail: tail} -> p { cards= cons (flipCard topCard) tail }
   Nothing -> p
 
