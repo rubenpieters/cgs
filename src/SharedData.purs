@@ -35,7 +35,7 @@ updateSharedGameState (SvFlip gid) gs = onGid gid (\(Pack p) -> Pack (flipTop p)
 updateSharedGameState (SvLock gid { pid: pid }) gs = onGid gid (\(Pack p) -> Pack (lockPack pid p)) gs
 updateSharedGameState (SvLockDeny) gs = gs
 updateSharedGameState (SvDraw gid { amount: amount, newGid: newGid }) gs =
-  case (forGid gid (drawFromPack amount) gs) of
+  case (forGid gid (\(Pack p) -> p # drawFromPack amount) gs) of
     Just { remaining: remaining, drawn: drawn } ->
       -- set cards of old pack to remaining cards
       let gs' = onGid gid (\(Pack p) -> Pack $ p { cards= remaining }) gs
@@ -153,12 +153,22 @@ type PackData r =
 genericUpdate :: forall pack f a r.
                  (Monad f) =>
                  { log :: String -> f Unit
+                 -- TODO: pack or (Maybe pack) ?
                  , packByGid :: Gid -> f pack
                  , getPackData :: pack -> f (PackData r)
                  , setPackData :: (PackData r) -> pack -> f Unit
+                 , createPack :: forall x. (PackData x) -> f Unit
+                 , deletePack :: pack -> f Unit
+                 , packToHand :: PlayerId -> pack -> f Unit
+                 , dropAt :: { x :: Int, y :: Int } -> pack -> f Unit 
                  } ->
                  SvGameEvent ->
                  f Unit
+-- TODO remove these game events
+genericUpdate k (SvSelect _) = pure unit
+genericUpdate k (SvGather) = pure unit
+genericUpdate k (SvRemove _) = pure unit
+--
 genericUpdate k (SvFlip gid) = do
   pack <- k.packByGid gid
   packData <- pack # k.getPackData
@@ -177,7 +187,34 @@ genericUpdate k (SvActionDeny _) = do
   pure unit
 genericUpdate k (SvDraw gid { amount: amount, newGid: newGid }) = do
   pack <- k.packByGid gid
-  -- 
-  pure unit
-genericUpdate k _ = pure unit
+  packData <- pack # k.getPackData
+  let { remaining: remaining, drawn: drawn } = packData # drawFromPack amount
+  -- set cards of old pack to remaining cards
+  pack # k.setPackData (packData { cards= remaining })
+  -- create new pack from drawn cards
+  let newPack = { gid: newGid
+                , cards: drawn
+                , lockedBy: Nothing
+                }
+  k.createPack newPack
+  -- TODO: on client drag trigger needs to be set, the new pack is going to be dragged
+genericUpdate k (SvDrop gid pos) = do
+  pack <- k.packByGid gid
+  pack # k.dropAt pos
+genericUpdate k (SvDropIn drp { tgt: pk }) = do
+  pk <- k.packByGid pk
+  pkData <- pk # k.getPackData
+  drp <- k.packByGid drp
+  drpData <- drp # k.getPackData
+  pk # k.setPackData (pkData { cards= pkData.cards <> drpData.cards })
+  drp # k.deletePack
+genericUpdate k (SvToHand gid { pid: pid }) = do
+  pack <- k.packByGid gid
+  pack # k.packToHand pid
+genericUpdate k (SvShuffle gid { seed: seed }) = do
+  pack <- k.packByGid gid
+  packData <- pack # k.getPackData
+  pack # k.setPackData (f packData)
+  where
+    f r = r { cards= shuffle seed r.cards }
 

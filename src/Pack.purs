@@ -54,10 +54,10 @@ dropAt {x: x, y: y} (Pack p) = Pack $ p { position= OnBoard {x: x, y: y} }
 packToHand :: PlayerId -> Pack -> Pack
 packToHand pid (Pack p) = Pack $ p { position= InHandOf {pid: pid} }
 
-drawFromPack :: Int -> Pack -> {remaining :: Array Card, drawn :: Array Card}
-drawFromPack x (Pack p) | x <= 0 =
+--drawFromPack :: Int -> Pack -> {remaining :: Array Card, drawn :: Array Card}
+drawFromPack x p | x <= 0 =
   { remaining: p.cards, drawn: []}
-drawFromPack n (Pack p) =
+drawFromPack n p =
   { remaining: p.cards # drop n, drawn: p.cards # take n }
 
 --lockPack :: PlayerId -> Pack -> Pack
