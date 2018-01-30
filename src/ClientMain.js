@@ -324,7 +324,9 @@ exports.setCards=function(cards) {
       c.props.cards = cards;
       c.packText.setText(c.props.cards.length);
       const packText = PS.ClientMain.packText(cards);
-      infoText.text = "gid: " + selectedCard.props.gid + "\n" + packText;
+      if (typeof selectedCard !== "undefined") {
+        infoText.text = "gid: " + selectedCard.props.gid + "\n" + packText;
+      }
     };
   };
 };
