@@ -138,9 +138,6 @@ updateGameState es = do
 --  updateCards
   where
     update :: SvGameEvent -> Eff _ Unit
-    update (SvSelect gid) = unsafeThrowException (error "unimplemented")
-    update SvGather = unsafeThrowException (error "unimplemented")
-    update (SvRemove gid) = unsafeThrowException (error "unimplemented")
     update (SvFlip gid) = onCard gid flipCard
     update (SvLock gid { pid: pid }) = onCard gid (lockCard pid)
     -- TODO: do all players see lock denies?

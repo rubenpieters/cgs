@@ -28,9 +28,6 @@ type Player =
 type ObfuscatedGameState = SharedGameState
 
 updateSharedGameState :: SvGameEvent -> SharedGameState -> SharedGameState
-updateSharedGameState (SvSelect gid) gs = gs
-updateSharedGameState SvGather gs = gs
-updateSharedGameState (SvRemove gid) gs = gs
 updateSharedGameState (SvFlip gid) gs = onGid gid (\(Pack p) -> Pack (flipTop p)) gs
 updateSharedGameState (SvLock gid { pid: pid }) gs = onGid gid (\(Pack p) -> Pack (lockPack pid p)) gs
 updateSharedGameState (SvLockDeny) gs = gs
@@ -66,10 +63,7 @@ updateSharedGameState (SvActionDeny _) gs = gs
 -- CLIENT GAME EVENT
 -- client sends to server
 
-data ClGameEvent = ClSelect Gid
-                 | ClGather
-                 | ClRemove Gid
-                 | ClFlip Gid
+data ClGameEvent = ClFlip Gid
                  | ClLock Gid
                  | ClDraw Gid { amount :: Int }
                  | ClDrop Gid { x :: Int, y :: Int }
@@ -81,10 +75,7 @@ data ClGameEvent = ClSelect Gid
 -- server sends to client
 -- server adds information where necessary
 
-data SvGameEvent = SvSelect Gid
-                 | SvGather
-                 | SvRemove Gid
-                 | SvFlip Gid
+data SvGameEvent = SvFlip Gid
                  | SvLock Gid { pid :: Int }
                  | SvLockDeny
                  | SvDraw Gid { amount :: Int, newGid :: Int }
@@ -164,11 +155,6 @@ genericUpdate :: forall pack f a r.
                  } ->
                  SvGameEvent ->
                  f Unit
--- TODO remove these game events
-genericUpdate k (SvSelect _) = pure unit
-genericUpdate k (SvGather) = pure unit
-genericUpdate k (SvRemove _) = pure unit
---
 genericUpdate k (SvFlip gid) = do
   pack <- k.packByGid gid
   packData <- pack # k.getPackData
