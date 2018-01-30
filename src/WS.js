@@ -27,7 +27,7 @@ exports.unsafeBroadcast = function(data) {
       return function() {
         server.clients.forEach(function(client) {
           if (client !== exceptClient) {
-            unsafeSendMessage(client)(data)();
+            unsafeSendMessage(data)(client)();
           }
         });
       };
