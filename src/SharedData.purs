@@ -151,7 +151,7 @@ genericUpdate :: forall pack f a r.
                  , createPack :: forall x. (PackData x) -> f Unit
                  , deletePack :: pack -> f Unit
                  , packToHand :: PlayerId -> pack -> f Unit
-                 , dropAt :: { x :: Int, y :: Int } -> pack -> f Unit 
+                 , dropAt :: { x :: Int, y :: Int } -> pack -> f Unit
                  } ->
                  SvGameEvent ->
                  f Unit

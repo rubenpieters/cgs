@@ -8,13 +8,17 @@ import WS as WS
 import Control.Monad.Eff.Console (log)
 
 main :: Eff _ Unit
-main = startServer
+main = do
+  log "Initializing Rooms"
+  roomStates <- initRooms
+  log "Starting Server"
+  server <- WS.mkServer { port: 8080 }
+  let k =
        { log: log
-       , initializeRooms: initRooms
-       , initializeServer: WS.mkServer { port: 8080 }
-       , onClConnect: WS.onClConnect
        , onClMessage: WS.onClMessage
        , onClDisconnect: WS.onClDisconnect
        , sendMessage: WS.sendMessage
-       , broadcast: WS.broadcast
+       , broadcast: \a b -> WS.broadcast a b server
        }
+  server # WS.onClConnect (onSocketConnection k roomStates)
+

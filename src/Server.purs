@@ -33,105 +33,81 @@ type RoomState =
   , gidCounter :: Int
   }
 
-
-startServer :: forall f server client r ref.
-               (Monad f) =>
-               (MonadRef ref f) =>
-               { log :: String -> f Unit
-               , initializeRooms :: f (ref RoomState)
-               , initializeServer :: f server
-               , onClConnect :: (client -> f Unit) -> server -> f Unit
-               , onClMessage :: (String -> f Unit) -> client -> f Unit
-               , onClDisconnect :: (f Unit) -> client -> f Unit
-               , sendMessage :: ServerMessage -> client -> f Unit
-               , broadcast :: ServerMessage -> { except :: client } -> server -> f Unit
-               | r } ->
-               f Unit
-startServer k = do
-  k.log "Initializing Rooms"
-  roomStates <- k.initializeRooms
-  k.log "Starting Server"
-  server <- k.initializeServer
-  server # k.onClConnect (onSocketConnection k roomStates server)
-
-onSocketConnection :: forall f server client ref r msg1 msg2 f1 f2.
+onSocketConnection :: forall f client ref r msg1 msg2 f1 f2.
                       (Monad f) =>
                       (MonadRef ref f) =>
                       { log :: String -> f Unit
                       , onClMessage :: (String -> f Unit) -> client -> f Unit
                       , onClDisconnect :: (f Unit) -> client -> f Unit
                       , sendMessage :: ServerMessage -> client -> f Unit
-                      , broadcast :: ServerMessage -> { except :: client } -> server -> f Unit
+                      , broadcast :: ServerMessage -> { except :: client } -> f Unit
                       | r } ->
                       ref RoomState ->
-                      server ->
                       client ->
                       f Unit
-onSocketConnection k rsRef server client = do
+onSocketConnection k rsRef client = do
   -- read roomState
   roomState <- readRef rsRef
   let newPlayerId = roomState.playerIdCounter + 1
   k.log ("New player has connected: " <> show newPlayerId)
   -- set event handlers
-  client # k.onClMessage (onMessage k rsRef server client newPlayerId)
+  client # k.onClMessage (onMessage k rsRef client newPlayerId)
   client # k.onClDisconnect (onDisconnect k rsRef newPlayerId)
   -- send id to client
   client # k.sendMessage (ConfirmJoin { assignedId: newPlayerId, roomGameState: roomState.gameState })
   -- update other players
-  server # k.broadcast (NewPlayer { id: newPlayerId }) { except: client }
+  { except: client } # k.broadcast (NewPlayer { id: newPlayerId })
   -- send all players to new player
   -- TODO: batch into one message?
   for_ roomState.players (\player -> client # k.sendMessage (NewPlayer { id: player.id }))
   -- update player list
   writeRef rsRef (roomState { players= {id: newPlayerId} : roomState.players, playerIdCounter= newPlayerId})
 
-onMessage :: forall f ref server client r.
+onMessage :: forall f ref client r.
              (Monad f) =>
              (MonadRef ref f) =>
              { log :: String -> f Unit
-             , broadcast :: ServerMessage -> { except :: client } -> server -> f Unit
+             , broadcast :: ServerMessage -> { except :: client } -> f Unit
              , sendMessage :: ServerMessage -> client -> f Unit
              | r } ->
              ref RoomState ->
-             server ->
              client ->
              Int ->
              String ->
              f Unit
-onMessage k rsRef server client id message = do
+onMessage k rsRef client id message = do
   k.log ("received message " <> message)
   case jsonParser message >>= decodeJson of
     Left (errs :: String) ->
       k.log ("malformed message: " <> errs)
     Right (clMsg :: ClientMessage) ->
-      onClientMessage k rsRef server client id clMsg
+      onClientMessage k rsRef client id clMsg
 
-onClientMessage :: forall f ref server client r.
+onClientMessage :: forall f ref client r.
                    (Monad f) =>
                    (MonadRef ref f) =>
                    { log :: String -> f Unit
-                   , broadcast :: ServerMessage -> { except :: client } -> server -> f Unit
+                   , broadcast :: ServerMessage -> { except :: client } -> f Unit
                    , sendMessage :: ServerMessage -> client -> f Unit
                    | r } ->
                    ref RoomState ->
-                   server ->
                    client ->
                    Int ->
                    ClientMessage ->
                    f Unit
-onClientMessage k rsRef server client clientId (ClMoveGid {id: playerId, x: x, y: y}) = do
+onClientMessage k rsRef client clientId (ClMoveGid {id: playerId, x: x, y: y}) = do
   -- check if client id == player id?
   k.log ("player " <> show playerId <> " moving gid, x:" <> show x <> ", y: " <> show y)
-  server # k.broadcast (SvMoveGid { id: playerId, x: x, y: y }) { except: client }
+  { except: client } # k.broadcast (SvMoveGid { id: playerId, x: x, y: y })
   -- TODO: update gid position in server gamestate?
-onClientMessage k rsRef server client clientId (ClGameStateUpdate {events: events}) = do
+onClientMessage k rsRef client clientId (ClGameStateUpdate {events: events}) = do
   k.log ("events: " <> show events)
   confirmedEvents <- traverse (confirmEvent k rsRef clientId) events
   roomState <- readRef rsRef
   let updatedGameState = foldr updateSharedGameState roomState.gameState confirmedEvents
   writeRef rsRef (roomState { gameState= updatedGameState })
   client # k.sendMessage (ConfirmUpdates { events: confirmedEvents })
-  server # k.broadcast (ConfirmUpdates { events: confirmedEvents }) { except: client }
+  { except: client } # k.broadcast (ConfirmUpdates { events: confirmedEvents })
 
 confirmEvent :: forall f ref r.
                 (Monad f) =>
