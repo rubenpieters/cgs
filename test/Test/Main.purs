@@ -87,8 +87,8 @@ testE1 e map =
       r <- expectLayerM m "send" e map
       log ("expectResult: " <> show r)
       assert' ("no match: " <> show r) (isMatch r)
-  , broadcast: \m { except: c } s -> do
-      log ("broadcast: " <> (show m) <> " except: " <> c <> " -- from " <> s)
+  , broadcast: \m { except: c } -> do
+      log ("broadcast: " <> (show m) <> " except: " <> c)
       r <- expectLayerM m "bc" e map
       log ("expectResult: " <> show r)
       assert' ("no match: " <> show r) (isMatch r)
@@ -117,8 +117,8 @@ testOnConn = do
   r <- testRoom
   e <- newRef expectTest1
   map <- newRef M.empty
-  onSocketConnection (testE1 e map) r ("SERVER") ("NEW_CLIENT_1")
-  onSocketConnection (testE1 e map) r ("SERVER") ("NEW_CLIENT_2")
+  onSocketConnection (testE1 e map) r ("NEW_CLIENT_1")
+  onSocketConnection (testE1 e map) r ("NEW_CLIENT_2")
   ex <- readRef e
   assert' "expected more messages" (ex # isDone)
 
