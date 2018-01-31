@@ -1,15 +1,19 @@
 module SharedData where
 
-import Types
-import Pack
-import GameState
-import Shuffle
-
+import Control.Monad.Except
 import Data.Array
 import Data.Foldable
 import Data.Foreign
 import Data.Traversable
 import Data.Unfoldable
+import GameState
+import Pack
+import Shuffle
+import Types
+
+import Control.Monad.Eff.Exception (error)
+import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
+import Control.Monad.Reader (ask)
 import Data.Argonaut.Decode.Class (class DecodeJson)
 import Data.Argonaut.Decode.Generic.Rep (genericDecodeJson)
 import Data.Argonaut.Encode.Class (class EncodeJson)
@@ -17,9 +21,6 @@ import Data.Argonaut.Encode.Generic.Rep (genericEncodeJson)
 import Data.Generic.Rep as Rep
 import Data.Generic.Rep.Show (genericShow)
 import Data.Map as M
-
-import Control.Monad.Eff.Exception (error)
-import Control.Monad.Eff.Exception.Unsafe (unsafeThrowException)
 
 type Player =
   { id :: Int
@@ -144,8 +145,9 @@ type PackData r =
 genericUpdate :: forall pack f a r.
                  (Monad f) =>
                  { log :: String -> f Unit
+                 , throw :: forall a. String -> f a
                  -- TODO: pack or (Maybe pack) ?
-                 , packByGid :: Gid -> f pack
+                 , packByGid :: Gid -> f (Maybe pack)
                  , getPackData :: pack -> f (PackData r)
                  , setPackData :: (PackData r) -> pack -> f Unit
                  , createPack :: forall x. (PackData x) -> f Unit
@@ -156,13 +158,13 @@ genericUpdate :: forall pack f a r.
                  SvGameEvent ->
                  f Unit
 genericUpdate k (SvFlip gid) = do
-  pack <- k.packByGid gid
+  pack <- packByGidOrThrow k gid
   packData <- pack # k.getPackData
   pack # k.setPackData (f packData)
   where
     f = flipTop
 genericUpdate k (SvLock gid { pid: pid }) = do
-  pack <- k.packByGid gid
+  pack <- packByGidOrThrow k gid
   packData <- pack # k.getPackData
   pack # k.setPackData (f packData)
   where
@@ -172,7 +174,7 @@ genericUpdate k (SvLockDeny) = do
 genericUpdate k (SvActionDeny _) = do
   pure unit
 genericUpdate k (SvDraw gid { amount: amount, newGid: newGid }) = do
-  pack <- k.packByGid gid
+  pack <- packByGidOrThrow k gid
   packData <- pack # k.getPackData
   let { remaining: remaining, drawn: drawn } = packData # drawFromPack amount
   -- set cards of old pack to remaining cards
@@ -185,22 +187,34 @@ genericUpdate k (SvDraw gid { amount: amount, newGid: newGid }) = do
   k.createPack newPack
   -- TODO: on client drag trigger needs to be set, the new pack is going to be dragged
 genericUpdate k (SvDrop gid pos) = do
-  pack <- k.packByGid gid
+  pack <- packByGidOrThrow k gid
   pack # k.dropAt pos
 genericUpdate k (SvDropIn drp { tgt: pk }) = do
-  pk <- k.packByGid pk
+  pk <- packByGidOrThrow k pk
   pkData <- pk # k.getPackData
-  drp <- k.packByGid drp
+  drp <- packByGidOrThrow k drp
   drpData <- drp # k.getPackData
   pk # k.setPackData (pkData { cards= pkData.cards <> drpData.cards })
   drp # k.deletePack
 genericUpdate k (SvToHand gid { pid: pid }) = do
-  pack <- k.packByGid gid
+  pack <- packByGidOrThrow k gid
   pack # k.packToHand pid
 genericUpdate k (SvShuffle gid { seed: seed }) = do
-  pack <- k.packByGid gid
+  pack <- packByGidOrThrow k gid
   packData <- pack # k.getPackData
   pack # k.setPackData (f packData)
   where
     f r = r { cards= shuffle seed r.cards }
 
+packByGidOrThrow :: forall pack f a r.
+                 (Monad f) =>
+                 { log :: String -> f Unit
+                 , throw :: forall a. String -> f a
+                 , packByGid :: Gid -> f (Maybe pack)
+                 | r } ->
+                 Gid -> f pack
+packByGidOrThrow k gid = do
+  mPack <- k.packByGid gid
+  case mPack of
+    Just pack -> pure pack
+    Nothing -> k.throw ("Pack " <> show gid <> "not found!")

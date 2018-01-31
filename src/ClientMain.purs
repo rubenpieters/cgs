@@ -539,3 +539,18 @@ packText :: Array Card -> String
 packText cards = case uncons cards of
   Just {head: (Card c), tail: t} -> c.cardText
   Nothing -> "<empty pack>"
+
+{-
+                 , packByGid :: Gid -> f (Maybe pack)
+                 , getPackData :: pack -> f (PackData r)
+                 , setPackData :: (PackData r) -> pack -> f Unit
+                 , createPack :: forall x. (PackData x) -> f Unit
+                 , deletePack :: pack -> f Unit
+                 , packToHand :: PlayerId -> pack -> f Unit
+                 , dropAt :: { x :: Int, y :: Int } -> pack -> f Unit
+-}
+
+packByGid :: Gid -> Eff _ (Maybe ClPack)
+packByGid gid = do
+  (LocalGameState gs) <- getGameState
+  pure $ M.lookup gid gs.cardsByGid

@@ -13,6 +13,8 @@ import Data.Argonaut.Encode.Generic.Rep (genericEncodeJson)
 import Data.Generic.Rep as Rep
 import Data.Generic.Rep.Show (genericShow)
 
+import Control.Monad.State
+
 -- gamestate which is stored on server
 -- needs to be obfuscated to hide asymmetric information
 data SharedGameState = SharedGameState
@@ -57,6 +59,22 @@ setGid gid pack (SharedGameState gs) =
 removeGid :: Gid -> SharedGameState -> SharedGameState
 removeGid gid (SharedGameState gs) =
   SharedGameState (gs { cardsByGid= M.delete gid gs.cardsByGid })
+
+{-
+                 , packByGid :: Gid -> f (Maybe pack)
+                 , getPackData :: pack -> f (PackData r)
+                 , setPackData :: (PackData r) -> pack -> f Unit
+                 , createPack :: forall x. (PackData x) -> f Unit
+                 , deletePack :: pack -> f Unit
+                 , packToHand :: PlayerId -> pack -> f Unit
+                 , dropAt :: { x :: Int, y :: Int } -> pack -> f Unit
+-}
+
+packByGid :: forall m. (MonadState SharedGameState m) => Gid -> m (Maybe Pack)
+packByGid gid = do
+  (SharedGameState gs) <- get
+  pure $ M.lookup gid gs.cardsByGid
+
 
 -- instances
 
