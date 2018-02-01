@@ -550,7 +550,25 @@ packText cards = case uncons cards of
                  , dropAt :: { x :: Int, y :: Int } -> pack -> f Unit
 -}
 
+type PackDataOnClient =
+  { gid :: Gid
+  , cards :: Array Card
+  , lockedBy :: Maybe PlayerId
+  }
+
 packByGid :: Gid -> Eff _ (Maybe ClPack)
 packByGid gid = do
   (LocalGameState gs) <- getGameState
   pure $ M.lookup gid gs.cardsByGid
+
+getPackData :: ClPack -> Eff _ PackProps
+getPackData = getProps
+
+-- TODO: set pack data should update visual properties in client
+setPackData :: PackProps -> ClPack -> Eff _ Unit
+setPackData = setProps
+
+{-
+createPack :: forall x. (PackData x) -> Eff _ Unit
+createPack packData = pure unit
+-}

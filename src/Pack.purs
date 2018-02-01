@@ -26,28 +26,6 @@ data Position
   = OnBoard { x :: Int, y :: Int}
   | InHandOf { pid :: PlayerId }
 
--- represent a singular card
--- is always part of a pack
-data Card = Card
-  -- texture for card front
-  { textureFront :: TextureLoc
-  -- texture for card back
-  , textureBack :: TextureLoc
-  -- direction of card (Up/Down)
-  , faceDir :: FaceDir
-  -- card text
-  , cardText :: String
-  }
-
--- location for texture
--- TODO: currently assumed all textures have String identifier and are loaded by Phaser
-type TextureLoc = String
-
--- direction which card is facing
--- Up: front texture should be shown
--- Down: back texture should be shown
-data FaceDir = FaceUp | FaceDown
-
 dropAt :: {x :: Int, y :: Int} -> Pack -> Pack
 dropAt {x: x, y: y} (Pack p) = Pack $ p { position= OnBoard {x: x, y: y} }
 
@@ -115,20 +93,4 @@ instance encodeJsonPosition :: EncodeJson Position
 instance decodeJsonPosition :: DecodeJson Position
   where decodeJson = genericDecodeJson
 instance showPosition :: Show Position
-  where show = genericShow
-
-derive instance genericCard :: Rep.Generic Card _
-instance encodeJsonCard :: EncodeJson Card
-  where encodeJson = genericEncodeJson
-instance decodeJsonCard :: DecodeJson Card
-  where decodeJson = genericDecodeJson
-instance showCard :: Show Card
-  where show = genericShow
-
-derive instance genericFaceDir :: Rep.Generic FaceDir _
-instance encodeJsonFaceDir :: EncodeJson FaceDir
-  where encodeJson = genericEncodeJson
-instance decodeJsonFaceDir :: DecodeJson FaceDir
-  where decodeJson = genericDecodeJson
-instance showFaceDir :: Show FaceDir
   where show = genericShow

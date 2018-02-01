@@ -3,6 +3,7 @@ module GameState where
 import Types
 import Pack
 
+import Data.Record.Builder
 import Data.Map as M
 import Data.Traversable (traverse)
 
@@ -70,11 +71,39 @@ removeGid gid (SharedGameState gs) =
                  , dropAt :: { x :: Int, y :: Int } -> pack -> f Unit
 -}
 
+type PackDataOnServer =
+  { gid :: Gid
+  , cards :: Array Card
+  , lockedBy :: Maybe PlayerId
+  , position :: Position
+  }
+
 packByGid :: forall m. (MonadState SharedGameState m) => Gid -> m (Maybe Pack)
 packByGid gid = do
   (SharedGameState gs) <- get
   pure $ M.lookup gid gs.cardsByGid
 
+getPackData :: Pack -> PackDataOnServer
+getPackData (Pack p) = p
+
+mGetPackData :: forall f. (Applicative f) => Pack -> f PackDataOnServer
+mGetPackData (Pack p) = pure p
+
+setPackData :: forall m. (MonadState SharedGameState m) =>
+  PackDataOnServer -> Pack -> m Unit
+setPackData packData _ = do
+  (SharedGameState gs) <- get
+  put $ SharedGameState $
+    gs { cardsByGid= M.insert packData.gid (Pack packData) gs.cardsByGid }
+{-
+createPack :: forall m x. (MonadState SharedGameState m) =>
+  (PackData x) -> m Unit
+createPack packData = do
+  (SharedGameState gs) <- get
+  let fullPackData = packData { position: OnBoard { x: 0, y: 0 } }
+  put $ SharedGameState $
+    gs { cardsByGid= M.insert packData.gid (Pack fullPackData) gs.cardsByGid }
+-}
 
 -- instances
 

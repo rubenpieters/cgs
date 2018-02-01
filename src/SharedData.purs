@@ -134,12 +134,6 @@ instance showClientMessage :: Show ClientMessage
 
 -- TODO: move definitions to correct module
 
-type PackData r =
-  { gid :: Gid
-  , cards :: Array Card
-  , lockedBy :: Maybe PlayerId
-  | r
-  }
 
 -- WIP creating generalization of server and client update gamestate functions
 genericUpdate :: forall pack f a r.
