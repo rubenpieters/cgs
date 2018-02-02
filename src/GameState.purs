@@ -108,6 +108,17 @@ createPack packData = do
   put $ SharedGameState $
     gs { cardsByGid= M.insert packData.gid (Pack fullPackData) gs.cardsByGid }
 
+deletePack :: forall m. (MonadState SharedGameState m) =>
+  Pack -> m Unit
+deletePack (Pack p) = do
+  gs <- get
+  put $ removeGid p.gid gs
+
+packToHand' :: forall m. (MonadState SharedGameState m) =>
+  PlayerId -> Pack -> m Unit
+packToHand' pid (Pack p) = do
+  gs <- get
+  put $ onGid p.gid (packToHand pid) gs
 
 -- instances
 

@@ -581,3 +581,18 @@ createPack packData = do
   newC # setPackMode (Dragging pid)
   newC # setDragTrigger
 -}
+
+deletePack :: ClPack -> Eff _ Unit
+deletePack = phKill
+
+packToHand :: PlayerId -> ClPack -> Eff _ Unit
+packToHand pid p =  do
+  ownPid <- getClientPlayerId
+  props <- p # getProps
+  if (ownPid == pid)
+     then do
+       onCard props.gid dropCard
+       onCard props.gid setInHand
+       handZoneNoHighlight
+     else do
+       onCard props.gid phSetInvisible
