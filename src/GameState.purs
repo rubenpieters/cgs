@@ -95,15 +95,19 @@ setPackData packData _ = do
   (SharedGameState gs) <- get
   put $ SharedGameState $
     gs { cardsByGid= M.insert packData.gid (Pack packData) gs.cardsByGid }
-{-
+
 createPack :: forall m x. (MonadState SharedGameState m) =>
   (PackData x) -> m Unit
 createPack packData = do
   (SharedGameState gs) <- get
-  let fullPackData = packData { position: OnBoard { x: 0, y: 0 } }
+  let packData' = { gid: packData.gid
+                  , cards: packData.cards
+                  , lockedBy: packData.lockedBy
+                  }
+  let fullPackData = build (merge packData') { position: OnBoard { x: 0, y: 0 } }
   put $ SharedGameState $
     gs { cardsByGid= M.insert packData.gid (Pack fullPackData) gs.cardsByGid }
--}
+
 
 -- instances
 

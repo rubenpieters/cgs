@@ -568,7 +568,16 @@ getPackData = getProps
 setPackData :: PackProps -> ClPack -> Eff _ Unit
 setPackData = setProps
 
-{-
 createPack :: forall x. (PackData x) -> Eff _ Unit
-createPack packData = pure unit
+createPack packData = do
+  let packData' = { gid: packData.gid
+                  , cards: packData.cards
+                  , lockedBy: packData.lockedBy
+                  }
+  _ <- materializeCard { x: 0, y: 0, texture: "empty", size: packData.cards # length, pack: packData' }
+  pure unit
+
+{-
+  newC # setPackMode (Dragging pid)
+  newC # setDragTrigger
 -}
