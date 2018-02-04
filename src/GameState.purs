@@ -120,6 +120,12 @@ packToHand' pid (Pack p) = do
   gs <- get
   put $ onGid p.gid (packToHand pid) gs
 
+dropAt' :: forall m. (MonadState SharedGameState m) =>
+  { x :: Int, y :: Int } -> Pack -> m Unit
+dropAt' xy pack@(Pack p) = do
+  gs <- get
+  put $ onGid p.gid (dropAt xy >>> unlockPack) gs
+
 -- instances
 
 derive instance genericSharedGameState :: Rep.Generic SharedGameState _

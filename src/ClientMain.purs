@@ -596,3 +596,10 @@ packToHand pid p =  do
        handZoneNoHighlight
      else do
        onCard props.gid phSetInvisible
+
+dropAt :: { x :: Int, y :: Int } -> ClPack -> Eff _ Unit
+dropAt xy p = do
+  p # phSetVisible
+  p # phSetPos xy
+  p # dropCard
+  p # setInField
