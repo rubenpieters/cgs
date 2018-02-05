@@ -149,25 +149,26 @@ genericUpdate :: forall pack f a r.
                  , packToHand :: PlayerId -> pack -> f Unit
                  , dropAt :: { x :: Int, y :: Int } -> pack -> f Unit
                  } ->
+                 PlayerId ->
                  SvGameEvent ->
                  f Unit
-genericUpdate k (SvFlip gid) = do
+genericUpdate k _ (SvFlip gid) = do
   pack <- packByGidOrThrow k gid
   packData <- pack # k.getPackData
   pack # k.setPackData (f packData)
   where
     f = flipTop
-genericUpdate k (SvLock gid { pid: pid }) = do
+genericUpdate k _ (SvLock gid { pid: pid }) = do
   pack <- packByGidOrThrow k gid
   packData <- pack # k.getPackData
   pack # k.setPackData (f packData)
   where
     f = lockPack pid
-genericUpdate k (SvLockDeny) = do
+genericUpdate k _ (SvLockDeny) = do
   pure unit -- TODO: should denying locks/actions be separate?
-genericUpdate k (SvActionDeny _) = do
+genericUpdate k _ (SvActionDeny _) = do
   pure unit
-genericUpdate k (SvDraw gid { amount: amount, newGid: newGid }) = do
+genericUpdate k pid (SvDraw gid { amount: amount, newGid: newGid }) = do
   pack <- packByGidOrThrow k gid
   packData <- pack # k.getPackData
   let { remaining: remaining, drawn: drawn } = packData # drawFromPack amount
@@ -176,24 +177,24 @@ genericUpdate k (SvDraw gid { amount: amount, newGid: newGid }) = do
   -- create new pack from drawn cards
   let newPack = { gid: newGid
                 , cards: drawn
-                , lockedBy: Nothing
+                , lockedBy: Just pid
                 }
   k.createPack newPack
   -- TODO: on client drag trigger needs to be set, the new pack is going to be dragged
-genericUpdate k (SvDrop gid pos) = do
+genericUpdate k _ (SvDrop gid pos) = do
   pack <- packByGidOrThrow k gid
   pack # k.dropAt pos
-genericUpdate k (SvDropIn drp { tgt: pk }) = do
+genericUpdate k _ (SvDropIn drp { tgt: pk }) = do
   pk <- packByGidOrThrow k pk
   pkData <- pk # k.getPackData
   drp <- packByGidOrThrow k drp
   drpData <- drp # k.getPackData
   pk # k.setPackData (pkData { cards= pkData.cards <> drpData.cards })
   drp # k.deletePack
-genericUpdate k (SvToHand gid { pid: pid }) = do
+genericUpdate k _ (SvToHand gid { pid: pid }) = do
   pack <- packByGidOrThrow k gid
   pack # k.packToHand pid
-genericUpdate k (SvShuffle gid { seed: seed }) = do
+genericUpdate k _ (SvShuffle gid { seed: seed }) = do
   pack <- packByGidOrThrow k gid
   packData <- pack # k.getPackData
   pack # k.setPackData (f packData)

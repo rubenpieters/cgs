@@ -21,6 +21,9 @@ import Data.Argonaut.Parser (jsonParser)
 
 import Control.Monad.Eff.Console
 --import Control.Monad.Eff.Ref
+import Control.Monad.Error.Class
+import Control.Monad.Except
+import Control.Monad.State
 import MonadRef
 
 import Node.Encoding (Encoding(..))
@@ -104,10 +107,38 @@ onClientMessage k rsRef client clientId (ClGameStateUpdate {events: events}) = d
   k.log ("events: " <> show events)
   confirmedEvents <- traverse (confirmEvent k rsRef clientId) events
   roomState <- readRef rsRef
-  let updatedGameState = foldr updateSharedGameState roomState.gameState confirmedEvents
+  updatedGameState <-
+    case serverUpdateFunc' clientId roomState.gameState confirmedEvents of
+      Left err -> do
+        k.log ("error while updating: " <> err)
+        pure roomState.gameState
+      Right gs -> pure gs
   writeRef rsRef (roomState { gameState= updatedGameState })
   client # k.sendMessage (ConfirmUpdates { events: confirmedEvents })
   { except: client } # k.broadcast (ConfirmUpdates { events: confirmedEvents })
+
+serverUpdateFunc' :: PlayerId -> SharedGameState -> Array SvGameEvent -> Either String SharedGameState
+serverUpdateFunc' pid gs events =
+  runExcept $ flip execStateT gs $ (for_ events (serverUpdateFunc pid))
+
+serverUpdateFunc :: forall m.
+                    (MonadState SharedGameState m) =>
+                    (MonadThrow String m) =>
+                    PlayerId -> SvGameEvent -> m Unit
+serverUpdateFunc pid event = genericUpdate
+      { log: \_ -> pure unit
+      , throw: throwError
+      , packByGid: packByGid
+      , getPackData: mGetPackData
+      , setPackData: setPackData
+      , createPack: createPack
+      , deletePack: deletePack
+      , packToHand: packToHand'
+      , dropAt: dropAt'
+      }
+      pid
+      event
+
 
 confirmEvent :: forall f ref r.
                 (Monad f) =>

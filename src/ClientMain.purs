@@ -132,11 +132,24 @@ cardLocked gid = do
 
 updateGameState :: Array SvGameEvent -> Eff _ Unit
 updateGameState es = do
+  pid <- getClientPlayerId
   -- handle events
-  traverse_ update es
+  traverse_ (update pid) es
   -- update cards
 --  updateCards
   where
+    update = genericUpdate
+      { log: log
+      , throw: throw
+      , packByGid: packByGid
+      , getPackData: getPackData
+      , setPackData: setPackData
+      , createPack: createPack
+      , deletePack: deletePack
+      , packToHand: packToHand
+      , dropAt: dropAt
+      }
+{-
     update :: SvGameEvent -> Eff _ Unit
     update (SvFlip gid) = onCard gid flipCard
     update (SvLock gid { pid: pid }) = onCard gid (lockCard pid)
@@ -162,6 +175,7 @@ updateGameState es = do
            onCard gid phSetInvisible
     update (SvShuffle gid { seed: seed }) = onCard gid (shufflePack seed)
     update (SvActionDeny _) = pure unit
+-}
 
 updateCards :: Eff _ Unit
 updateCards = do
@@ -386,7 +400,7 @@ sendUpdates socket events = emit socket (ClGameStateUpdate { events: events })
 -- client on server message
 
 onServerStrMessage :: ∀ e.
-                      String -> Eff (console :: CONSOLE, ph :: PHASER | e) Unit
+                      String -> Eff _ Unit
 onServerStrMessage msg = do
   let eSvMsg = jsonParser msg >>= decodeJson
   case eSvMsg of
@@ -394,7 +408,7 @@ onServerStrMessage msg = do
     Right (svMsg :: ServerMessage) -> onServerMessage svMsg
 
 onServerMessage :: ∀ e.
-                   ServerMessage -> Eff (console :: CONSOLE, ph :: PHASER | e) Unit
+                   ServerMessage -> Eff _ Unit
 onServerMessage (ConfirmJoin {assignedId: id, roomGameState: gs}) = do
   log ("assigned player id: " <> show id)
   setClientPlayerId id
@@ -566,7 +580,32 @@ getPackData = getProps
 
 -- TODO: set pack data should update visual properties in client
 setPackData :: PackProps -> ClPack -> Eff _ Unit
-setPackData = setProps
+setPackData newProps p = do
+  p # setProps newProps
+  p # checkVisuals
+
+checkVisuals :: ClPack -> Eff _ Unit
+checkVisuals p = do
+  props <- p # getProps
+  ownPid <- getClientPlayerId
+  -- when 'cards' property is changed
+  case (uncons props.cards) of
+    Just { head: (Card firstCard), tail: t} -> do
+      case firstCard.faceDir of
+        FaceUp -> phLoadTexture p firstCard.textureFront 0 false
+        FaceDown -> phLoadTexture p firstCard.textureBack 0 false
+    Nothing -> pure unit -- TODO: make empty pack texture?
+  -- TODO: correctly set packLength text
+  -- when 'lockedBy' property is changed
+  case (props.lockedBy) of
+    Just pid -> do
+                if ownPid == pid
+                   then do
+                        log ("setting LOCKED: " <> show pid)
+                        p # setPackMode (Dragging pid)
+                        p # setDragTrigger
+                   else p # setPackMode (Locked pid)
+    Nothing -> pure unit -- TODO: should we reset drag trigger here? and packmode?
 
 createPack :: forall x. (PackData x) -> Eff _ Unit
 createPack packData = do
@@ -574,8 +613,12 @@ createPack packData = do
                   , cards: packData.cards
                   , lockedBy: packData.lockedBy
                   }
-  _ <- materializeCard { x: 0, y: 0, texture: "empty", size: packData.cards # length, pack: packData' }
-  pure unit
+  p <- materializeCard { x: 0, y: 0, texture: "empty", size: packData.cards # length, pack: packData' }
+  p # checkVisuals
+  (LocalGameState gs) <- getGameState
+  let updatedGs = LocalGameState ({ cardsByGid : gs.cardsByGid # M.insert packData.gid p})
+  setGameState updatedGs
+
 
 {-
   newC # setPackMode (Dragging pid)
@@ -583,7 +626,7 @@ createPack packData = do
 -}
 
 deletePack :: ClPack -> Eff _ Unit
-deletePack = phKill
+deletePack = phKill -- TODO: clear components (overlapped, dragging, etc.)
 
 packToHand :: PlayerId -> ClPack -> Eff _ Unit
 packToHand pid p =  do
