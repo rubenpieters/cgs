@@ -180,7 +180,6 @@ genericUpdate k pid (SvDraw gid { amount: amount, newGid: newGid }) = do
                 , lockedBy: Just pid
                 }
   k.createPack newPack
-  -- TODO: on client drag trigger needs to be set, the new pack is going to be dragged
 genericUpdate k _ (SvDrop gid pos) = do
   pack <- packByGidOrThrow k gid
   pack # k.dropAt pos

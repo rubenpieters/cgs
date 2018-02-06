@@ -15,6 +15,7 @@ import Data.List hiding (null, length)
 import Data.Map as M
 import Data.Foldable
 import Data.Traversable
+import Data.Newtype hiding (traverse)
 
 import Control.Monad.Eff (kind Effect, Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
@@ -31,6 +32,7 @@ import Data.Foreign.Generic (genericEncode, encodeJSON, genericDecode, decodeJSO
 import Data.Generic.Rep as Rep
 import Data.Generic.Rep.Show (genericShow)
 
+import Control.Monad.State
 
 main :: forall e. Eff e Unit
 main = pure unit
@@ -483,6 +485,7 @@ type PackProps =
 foreign import getProps :: ∀ e. ClPack -> Eff (ph :: PHASER | e) PackProps
 foreign import setProps :: ∀ e. PackProps -> ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import setCards :: ∀ e. Array Card -> ClPack -> Eff (ph :: PHASER | e) Unit
+foreign import setPackText :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
 
 foreign import getOverlapCard :: ∀ e. Eff (ph :: PHASER | e) (Maybe ClPack)
 foreign import setMOverlapCard :: ∀ e. (Maybe ClPack) -> Eff (ph :: PHASER | e) Unit
@@ -589,13 +592,15 @@ checkVisuals p = do
   props <- p # getProps
   ownPid <- getClientPlayerId
   -- when 'cards' property is changed
+  -- change texture
   case (uncons props.cards) of
     Just { head: (Card firstCard), tail: t} -> do
       case firstCard.faceDir of
         FaceUp -> phLoadTexture p firstCard.textureFront 0 false
         FaceDown -> phLoadTexture p firstCard.textureBack 0 false
     Nothing -> pure unit -- TODO: make empty pack texture?
-  -- TODO: correctly set packLength text
+  -- change packText
+  p # setPackText
   -- when 'lockedBy' property is changed
   case (props.lockedBy) of
     Just pid -> do
@@ -605,7 +610,7 @@ checkVisuals p = do
                         p # setPackMode (Dragging pid)
                         p # setDragTrigger
                    else p # setPackMode (Locked pid)
-    Nothing -> pure unit -- TODO: should we reset drag trigger here? and packmode?
+    Nothing -> p # setPackMode None -- TODO: should we reset drag trigger here? and packmode?
 
 createPack :: forall x. (PackData x) -> Eff _ Unit
 createPack packData = do
@@ -619,11 +624,6 @@ createPack packData = do
   let updatedGs = LocalGameState ({ cardsByGid : gs.cardsByGid # M.insert packData.gid p})
   setGameState updatedGs
 
-
-{-
-  newC # setPackMode (Dragging pid)
-  newC # setDragTrigger
--}
 
 deletePack :: ClPack -> Eff _ Unit
 deletePack = phKill -- TODO: clear components (overlapped, dragging, etc.)
@@ -646,3 +646,50 @@ dropAt xy p = do
   p # phSetPos xy
   p # dropCard
   p # setInField
+
+data LockedStatus
+  = LockSelf
+  | LockOther
+  | NoLock
+
+data PositionStatus
+  = Static { x :: Int, y :: Int }
+  | Dragged
+
+type PositionFields a f =
+  { get :: a -> f { x :: Int, y :: Int }
+  , set :: { x :: Int, y :: Int } -> a -> f Unit
+  , updateDragged :: a -> f Unit
+  }
+
+newtype Components a f = Components
+  { overlappable :: Maybe { overlapped :: Boolean }
+  , lockable :: Maybe LockedStatus
+  , position :: Maybe (Tuple PositionStatus (PositionFields a f))
+  }
+
+derive instance newtypeComponents :: Newtype (Components a f) _
+
+type Entity a f =
+  { id :: Int
+  , components :: Components a f
+  , rep :: a
+  }
+
+type Entities a f = Array (Entity a f)
+
+updateEntities :: forall a f. (Monad f) => Entities a f -> f Unit
+updateEntities es = for_ es updateEntity
+
+updateEntity :: forall a f. (Monad f) => Entity a f -> f Unit
+updateEntity e = do
+  let cs = unwrap e.components
+  -- update position
+  case cs.position of
+    Just (Tuple (Static pos) { get: get, set: set }) -> do
+      e.rep # set pos
+    Just (Tuple Dragged { updateDragged: updateDragged }) -> do
+      e.rep # updateDragged
+    Nothing -> pure unit
+  -- update color
+  pure unit

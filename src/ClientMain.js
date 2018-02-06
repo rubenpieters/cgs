@@ -331,7 +331,15 @@ exports.setCards=function(cards) {
   };
 };
 
-
+exports.setPackText=function(pack) {
+  return function() {
+    pack.packText.setText(pack.props.cards.length);
+    const packText = PS.ClientMain.packText(pack.props.cards);
+    if (typeof selectedCard !== "undefined") {
+      infoText.text = "gid: " + selectedCard.props.gid + "\n" + packText;
+    }
+  };
+};
 
 // server interacting code
 

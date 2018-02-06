@@ -34,43 +34,11 @@ function onMessage(message) {
   PS.ClientMain.onServerStrMessage(message.data)();
 };
 
-/*
-function onSocketConnected() {
-	console.log("Connected to socket server");
-
-	// Send local player data to the game server
-	socket.emit("new player", {});
-};
-*/
-
 function onSocketDisconnected() {
   console.log("Disconnected from socket server");
   socket = undefined;
 
   connected = false;
-};
-
-function onNewPlayer(data) {
-  console.log("new player connected: " + JSON.stringify(data));
-};
-
-function onRemovePlayer(data) {
-  console.log("player disconnect: " + JSON.stringify(data));
-};
-
-function onMoveGid(data) {
-  console.log("mov gid: " + JSON.stringify(data));
-  PS.ClientMain.onCard(data.gid)(PS.ClientMain.moveCard(data.x)(data.y))();
-};
-
-function onConfirmUpdate(data) {
-  console.log("received game update confirmation");
-  console.log("events " + JSON.stringify(data));
-
-  //console.log(data.events[0] instanceof PS.ClientMain.Select);
-  var decodedEvents = PS.ClientMain.unsafeDecodeGEA(data.events)();
-
-  PS.ClientMain.updateGameState(decodedEvents)();
 };
 
 var gameH = 600;
