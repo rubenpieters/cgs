@@ -662,13 +662,22 @@ type PositionFields a f =
   , updateDragged :: a -> f Unit
   }
 
+data ColorType
+  = PackColor
+  | StaticColor { color :: Int }
+
+type ColorFields a f =
+  { setColor :: Int -> a -> f Unit
+  }
+
 newtype Components a f = Components
   { overlappable :: Maybe { overlapped :: Boolean }
   , lockable :: Maybe LockedStatus
   , position :: Maybe (Tuple PositionStatus (PositionFields a f))
+  , color :: Maybe (Tuple ColorType (ColorFields a f))
   }
 
-derive instance newtypeComponents :: Newtype (Components a f) _
+--derive instance newtypeComponents :: Newtype (Components a f) _
 
 type Entity a f =
   { id :: Int
@@ -683,7 +692,7 @@ updateEntities es = for_ es updateEntity
 
 updateEntity :: forall a f. (Monad f) => Entity a f -> f Unit
 updateEntity e = do
-  let cs = unwrap e.components
+  let csr@(Components cs) = e.components
   -- update position
   case cs.position of
     Just (Tuple (Static pos) { get: get, set: set }) -> do
@@ -692,4 +701,19 @@ updateEntity e = do
       e.rep # updateDragged
     Nothing -> pure unit
   -- update color
+  case cs.color of
+    Just (Tuple (StaticColor { color: color }) { setColor: setColor }) -> do
+      e.rep # setColor color
+    Just (Tuple PackColor { setColor: setColor }) -> do
+      e.rep # setColor (packColor csr)
+    Nothing -> pure unit
   pure unit
+
+packColor :: forall a f. Components a f -> Int
+packColor (Components cs) = case ({ a: cs.position, b: cs.overlappable, c: cs.lockable}) of
+  { b: (Just { overlapped: true })} -> 0x0000ff
+  { a: (Just (Tuple Dragged _)), c: (Just LockSelf)} -> 0x00ff00
+  { a: (Just (Tuple Dragged _)), c: (Just LockOther)} -> 0xff0000
+  { c: (Just LockSelf)} -> 0x008800
+  { c: (Just LockOther)} -> 0x880000
+  _ -> 0xffffff
