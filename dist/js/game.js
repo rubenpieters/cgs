@@ -99,6 +99,7 @@ var selectedCard;
 
 var gameState = PS.ClientMain.emptyGS;
 var eventBuffer = [];
+var entities = PS.ClientMain.emptyEntities;
 
 var dragTrigger = { status: 'none' };
 var dragTriggerText;

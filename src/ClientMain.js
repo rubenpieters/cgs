@@ -354,3 +354,14 @@ exports.unsafeEmit=function(socket) {
     };
   };
 };
+
+
+exports.getEntities=function() {
+  return entities;
+};
+
+exports.setEntities=function(es) {
+  return function() {
+    entities = es;
+  };
+};
