@@ -579,6 +579,8 @@ packByGid :: Gid -> Eff _ (Maybe ClPack)
 packByGid gid = do
   (LocalGameState gs) <- getGameState
   pure $ M.lookup gid gs.cardsByGid
+--  es <- getEntities
+--  pure $ M.lookup gid es <#> _.rep
 
 getPackData :: ClPack -> Eff _ PackProps
 getPackData = getProps
@@ -609,7 +611,8 @@ checkVisuals p = do
                 if ownPid == pid
                    then do
                         log ("setting LOCKED: " <> show pid)
-                        p # setPackMode (Dragging pid)
+--                        p # setPackMode (Dragging pid)
+                        modifyEntityEff entityDragging props.gid
                         p # setDragTrigger
                    else p # setPackMode (Locked pid)
     Nothing -> p # setPackMode None -- TODO: should we reset drag trigger here? and packmode?
@@ -621,10 +624,41 @@ createPack packData = do
                   , lockedBy: packData.lockedBy
                   }
   p <- materializeCard { x: 0, y: 0, texture: "empty", size: packData.cards # length, pack: packData' }
-  p # checkVisuals
   (LocalGameState gs) <- getGameState
   let updatedGs = LocalGameState ({ cardsByGid : gs.cardsByGid # M.insert packData.gid p})
   setGameState updatedGs
+  es <- getEntities
+  let es' = es # M.insert packData.gid (mkCardEntity packData.gid p)
+  setEntities es'
+  p # checkVisuals
+
+mkCardEntity :: forall e. Gid -> ClPack -> Entity (Eff (ph :: PHASER | e))
+mkCardEntity gid p = mkExists (EntityA
+  { id: gid
+  , components: Components
+    { overlappable: Nothing
+    , lockable: Nothing
+    , position: Tuple Nothing posFields
+    , color: Tuple (Just PackColor) { setColor: setTint }
+    }
+  , rep: p
+  })
+  where
+    posFields :: PositionFields ClPack (Eff (ph :: PHASER | e))
+    posFields =
+      { get: getXY
+      , set: setPackXY
+      , updateDragged: updateDragged
+      }
+
+
+entityDragging :: forall f e. Entity f -> Entity f
+entityDragging = runExists f
+  where
+    f :: forall f a. EntityA f a -> Entity f
+    f (EntityA e) =
+      let (Components cs) = e.components
+      in mkExists $ EntityA (e { components= Components (cs { position= Tuple (Just Dragged) (snd cs.position) }) })
 
 
 deletePack :: ClPack -> Eff _ Unit
@@ -676,8 +710,8 @@ type ColorFields a f =
 newtype Components a f = Components
   { overlappable :: Maybe { overlapped :: Boolean }
   , lockable :: Maybe LockedStatus
-  , position :: Maybe (Tuple PositionStatus (PositionFields a f))
-  , color :: Maybe (Tuple ColorType (ColorFields a f))
+  , position :: Tuple (Maybe PositionStatus) (PositionFields a f)
+  , color :: Tuple (Maybe ColorType) (ColorFields a f)
   }
 
 --derive instance newtypeComponents :: Newtype (Components a f) _
@@ -695,15 +729,18 @@ type Entities f = M.Map Int (Entity f)
 emptyEntities :: forall f. Entities f
 emptyEntities = M.empty
 
-foreign import getEntities :: forall e. Eff (phaser :: PHASER | e) (Entities (Eff (phaser :: PHASER | e)))
-foreign import setEntities :: forall e. Entities (Eff (phaser :: PHASER | e)) -> Eff (phaser :: PHASER | e) Unit
+foreign import getEntities :: forall e. Eff (ph :: PHASER | e) (Entities (Eff (ph :: PHASER | e)))
+foreign import setEntities :: forall e. Entities (Eff (ph :: PHASER | e)) -> Eff (ph :: PHASER | e) Unit
+foreign import updateDragged :: forall e. ClPack -> Eff (ph :: PHASER | e) Unit
+foreign import getXY :: forall e. ClPack -> Eff (ph :: PHASER | e) { x :: Int, y :: Int }
+foreign import setPackXY :: forall e. { x :: Int, y :: Int } -> ClPack -> Eff (ph :: PHASER | e) Unit
 
-modifyEntitiesEff :: forall e. (Entities (Eff (phaser :: PHASER | e)) -> Entities (Eff (phaser :: PHASER | e))) -> Eff (phaser :: PHASER | e) Unit
+modifyEntitiesEff :: forall e. (Entities (Eff (ph :: PHASER | e)) -> Entities (Eff (ph :: PHASER | e))) -> Eff (ph :: PHASER | e) Unit
 modifyEntitiesEff f = do
   es <- getEntities
   setEntities (f es)
 
-modifyEntityEff :: forall e. (Entity (Eff (phaser :: PHASER | e)) -> Entity (Eff (phaser :: PHASER | e))) -> Int -> Eff (phaser :: PHASER | e) Unit
+modifyEntityEff :: forall e. (Entity (Eff (ph :: PHASER | e)) -> Entity (Eff (ph :: PHASER | e))) -> Int -> Eff (ph :: PHASER | e) Unit
 modifyEntityEff f i = do
   es <- getEntities
   let es' =
@@ -714,14 +751,16 @@ modifyEntityEff f i = do
 
 updateEntitiesExt :: Eff _ Unit
 updateEntitiesExt = updateEntities
-  { get: getEntities
+  { log: log
+  , get: getEntities
   , modify: modifyEntitiesEff
-  , modifyEntity: unsafeThrow "noImpl"
+  , modifyEntity: modifyEntityEff
   }
 
 updateEntities :: forall a f.
                   (Monad f) =>
-                  { get :: f (Entities f)
+                  { log :: String -> f Unit
+                  , get :: f (Entities f)
                   , modify :: (Entities f -> Entities f) -> f Unit
                   , modifyEntity :: (Entity f -> Entity f) -> Int -> f Unit
                   } ->
@@ -734,41 +773,42 @@ updateEntities k = do
   for_ es2 (updateColor k)
   where
     updatePosition k e = e # runExists (updatePosition' k)
-    updatePosition' :: forall a.
-                       { get :: f (Entities f)
+    updatePosition' :: forall a r.
+                       { log :: String -> f Unit
+                       , get :: f (Entities f)
                        , modify :: (Entities f -> Entities f) -> f Unit
                        , modifyEntity :: (Entity f -> Entity f) -> Int -> f Unit
-                       } ->
+                       | r} ->
                       EntityA f a -> f Unit
     updatePosition' k (EntityA e) = do
       es <- k.get
       let csr@(Components cs) = e.components
       case cs.position of
-        Just (Tuple (Static pos) { get: get, set: set }) -> do
+        Tuple (Just (Static pos)) { get: get, set: set } -> do
           e.rep # set pos
-        Just (Tuple Dragged { updateDragged: updateDragged }) -> do
+        Tuple (Just Dragged) { updateDragged: updateDragged } -> do
           e.rep # updateDragged
           case firstOverlappingEntity (EntityA e) es of
             Just overlap -> k.modifyEntity (setOverlapped true) e.id
             Nothing -> pure unit
-        Nothing -> pure unit
+        Tuple Nothing _ -> pure unit
     updateColor k e = e # runExists (updateColor' k)
-    updateColor' :: forall a.
+    updateColor' :: forall a r.
                     { get :: f (Entities f)
                     , modify :: (Entities f -> Entities f) -> f Unit
                     , modifyEntity :: (Entity f -> Entity f) -> Int -> f Unit
-                    } ->
+                    | r} ->
                     EntityA f a -> f Unit
     updateColor' k (EntityA e) = do
       let csr@(Components cs) = e.components
       case cs.color of
-        Just (Tuple (StaticColor { color: color }) { setColor: setColor }) -> do
+        Tuple (Just (StaticColor { color: color })) { setColor: setColor } -> do
           e.rep # setColor color
-        Just (Tuple PackColor { setColor: setColor }) -> do
+        Tuple (Just PackColor) { setColor: setColor } -> do
           e.rep # setColor (packColor csr)
-        Just (Tuple ZoneColor { setColor: setColor }) -> do
+        Tuple (Just ZoneColor) { setColor: setColor } -> do
           e.rep # setColor (zoneColor csr)
-        Nothing -> pure unit
+        Tuple Nothing _ -> pure unit
       pure unit
 
 clearOverlappedStatus :: forall a f. Entities f -> Entities f
@@ -802,8 +842,8 @@ firstOverlappingEntity (EntityA e1) es = es # find overlapping
 packColor :: forall a f. Components a f -> Int
 packColor (Components cs) = case ({ a: cs.position, b: cs.overlappable, c: cs.lockable}) of
   { b: (Just { overlapped: true })} -> 0x0000ff
-  { a: (Just (Tuple Dragged _)), c: (Just LockSelf)} -> 0x00ff00
-  { a: (Just (Tuple Dragged _)), c: (Just LockOther)} -> 0xff0000
+  { a: (Tuple (Just Dragged) _), c: (Just LockSelf)} -> 0x00ff00
+  { a: (Tuple (Just Dragged) _), c: (Just LockOther)} -> 0xff0000
   { c: (Just LockSelf)} -> 0x008800
   { c: (Just LockOther)} -> 0x880000
   _ -> 0xffffff

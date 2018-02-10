@@ -365,3 +365,31 @@ exports.setEntities=function(es) {
     entities = es;
   };
 };
+
+exports.updateDragged=function(card) {
+  return function() {
+    var newX = PS.ClientMain.clamp(game.input.x - (cardW / 2))({lBound: 0, uBound: playRegionX - cardW});
+    var newY = PS.ClientMain.clamp(game.input.y - (cardH / 2))({lBound: 0, uBound: playRegionY - cardH});
+    card.x = newX;
+    card.y = newY;
+    card.packText.x = newX + 3;
+    card.packText.y = newY + 3;
+  };
+};
+
+exports.getXY=function(o) {
+  return function() {
+    return { x: o.x, y: o.y };
+  };
+};
+
+exports.setPackXY=function(xy) {
+  return function(card) {
+    return function() {
+      card.x = xy.x;
+      card.y = xy.y;
+      card.packText.x = xy.x + 3;
+      card.packText.y = xy.y + 3;
+    };
+  };
+};

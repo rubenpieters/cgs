@@ -244,7 +244,8 @@ function update() {
     eventBuffer = [];
   }
 
-  PS.ClientMain.updateCards();
+  //  PS.ClientMain.updateCards();
+  PS.ClientMain.updateEntitiesExt();
 
   updateDragTrigger();
 }
