@@ -181,6 +181,7 @@ genericUpdate k pid (SvDraw gid { amount: amount, newGid: newGid }) = do
                 }
   k.createPack newPack
 genericUpdate k _ (SvDrop gid pos) = do
+-- TODO: should unlock be part of the shared code in update?
   pack <- packByGidOrThrow k gid
   pack # k.dropAt pos
 genericUpdate k _ (SvDropIn drp { tgt: pk }) = do

@@ -157,6 +157,14 @@ exports.setTint=function(color) {
   };
 };
 
+exports.setZoneTint=function(color) {
+  return function(zone) {
+    return function() {
+      zone.tint = color;
+    };
+  };
+};
+
 exports.showCardSelectMenu=function(card) {
   return function() {
     cardDragProp.visible = true;
@@ -392,4 +400,8 @@ exports.setPackXY=function(xy) {
       card.packText.y = xy.y + 3;
     };
   };
+};
+
+exports.playerHandZone=function() {
+  return playerHandZone;
 };

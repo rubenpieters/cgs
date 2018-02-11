@@ -35,6 +35,8 @@ import Data.Generic.Rep.Show (genericShow)
 
 import Control.Monad.State
 
+import Unsafe.Coerce
+
 main :: forall e. Eff e Unit
 main = pure unit
 
@@ -60,6 +62,7 @@ foreign import handZoneNoHighlight :: ∀ e. Eff (ph :: PHASER | e) Unit
 foreign import isConnected :: ∀ e. Eff (ph :: PHASER | e) Boolean
 foreign import moveCard :: ∀ e. Int -> Int -> ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import setTint :: ∀ e. Int -> ClPack -> Eff (ph :: PHASER | e) Unit
+foreign import setZoneTint :: ∀ e. Int -> ClZone -> Eff (ph :: PHASER | e) Unit
 foreign import updateCardInfo :: ∀ e r. PhCard -> { | r } -> Eff (ph :: PHASER | e) Unit
 
 foreign import phKill :: ∀ e. ClPack -> Eff (ph :: PHASER | e) Unit
@@ -419,11 +422,14 @@ onServerMessage (ConfirmJoin {assignedId: id, roomGameState: gs}) = do
   clearPhaserState
   lgs <- materializeState gs
   setGameState lgs
+  handZone <- playerHandZone
+  addEntityEff (-1) (mkZoneEntity (-1) handZone)
 onServerMessage (NewPlayer {id: id}) = do
   log ("new player connected: " <> show id)
 onServerMessage (SvMoveGid {id: id, x: x, y: y}) = do
   log ("mov gid, id: " <> show id <> ", x: " <> show x <> ", y: " <> show y)
-  onCard id (moveCard x y)
+--  onCard id (moveCard x y)
+  modifyEntityEff (entityStatic { x: x, y: y }) id
 onServerMessage (ConfirmUpdates {events: events}) = do
   log ("confirmed updates: " <> show events)
   updateGameState events
@@ -472,8 +478,13 @@ materializeState (SharedGameState gs) = do
   lgs <- traverse f gs.cardsByGid
   pure (LocalGameState {cardsByGid : lgs})
   where
-    f pack = do
+    f pack@(Pack p) = do
                clPack <- materializeCard' pack
+               addEntityEff p.gid (mkCardEntity p.gid clPack)
+               case p.position of
+                 OnBoard pos ->
+                   modifyEntityEff (entityStatic pos) p.gid
+                 InHandOf _ -> pure unit
                pure clPack
 
 type PackProps =
@@ -613,9 +624,12 @@ checkVisuals p = do
                         log ("setting LOCKED: " <> show pid)
 --                        p # setPackMode (Dragging pid)
                         modifyEntityEff entityDragging props.gid
+                        modifyEntityEff (entityLock LockSelf) props.gid
                         p # setDragTrigger
-                   else p # setPackMode (Locked pid)
-    Nothing -> p # setPackMode None -- TODO: should we reset drag trigger here? and packmode?
+                   else -- p # setPackMode (Locked pid)
+                        modifyEntityEff (entityLock LockOther) props.gid
+    Nothing -> modifyEntityEff (entityLock NoLock) props.gid
+      --p # setPackMode None -- TODO: should we reset drag trigger here? and packmode?
 
 createPack :: forall x. (PackData x) -> Eff _ Unit
 createPack packData = do
@@ -627,18 +641,16 @@ createPack packData = do
   (LocalGameState gs) <- getGameState
   let updatedGs = LocalGameState ({ cardsByGid : gs.cardsByGid # M.insert packData.gid p})
   setGameState updatedGs
-  es <- getEntities
-  let es' = es # M.insert packData.gid (mkCardEntity packData.gid p)
-  setEntities es'
+  addEntityEff packData.gid (mkCardEntity packData.gid p)
   p # checkVisuals
 
 mkCardEntity :: forall e. Gid -> ClPack -> Entity (Eff (ph :: PHASER | e))
 mkCardEntity gid p = mkExists (EntityA
   { id: gid
   , components: Components
-    { overlappable: Nothing
-    , lockable: Nothing
-    , position: Tuple Nothing posFields
+    { overlappable: Just { overlapped: false }
+    , lockable: Just NoLock
+    , position: Tuple (Just (Static { x:0, y:0 })) posFields
     , color: Tuple (Just PackColor) { setColor: setTint }
     }
   , rep: p
@@ -651,8 +663,27 @@ mkCardEntity gid p = mkExists (EntityA
       , updateDragged: updateDragged
       }
 
+mkZoneEntity :: forall e. Int -> ClZone -> Entity (Eff (ph :: PHASER | e))
+mkZoneEntity i z = mkExists (EntityA
+  { id: i
+  , components: Components
+    { overlappable: Just { overlapped: false }
+    , lockable: Nothing
+    , position: Tuple Nothing posFields
+    , color: Tuple (Just ZoneColor) { setColor: setZoneTint }
+    }
+  , rep: z
+  })
+  where
+    posFields :: PositionFields ClZone (Eff (ph :: PHASER | e))
+    posFields =
+      { get: unsafeCoerce "noImpl"
+      , set: unsafeCoerce "noImpl"
+      , updateDragged: unsafeCoerce "noImpl"
+      }
 
-entityDragging :: forall f e. Entity f -> Entity f
+
+entityDragging :: forall f. Entity f -> Entity f
 entityDragging = runExists f
   where
     f :: forall f a. EntityA f a -> Entity f
@@ -660,6 +691,21 @@ entityDragging = runExists f
       let (Components cs) = e.components
       in mkExists $ EntityA (e { components= Components (cs { position= Tuple (Just Dragged) (snd cs.position) }) })
 
+entityStatic :: forall f. { x :: Int, y :: Int } ->  Entity f -> Entity f
+entityStatic pos = runExists f
+  where
+    f :: forall f a. EntityA f a -> Entity f
+    f (EntityA e) =
+      let (Components cs) = e.components
+      in mkExists $ EntityA (e { components= Components (cs { position= Tuple (Just (Static pos)) (snd cs.position) }) })
+
+entityLock :: forall f. LockedStatus -> Entity f -> Entity f
+entityLock lk = runExists f
+  where
+    f :: forall f a. EntityA f a -> Entity f
+    f (EntityA e) =
+      let (Components cs) = e.components
+      in mkExists $ EntityA (e { components= Components (cs { lockable= Just lk }) })
 
 deletePack :: ClPack -> Eff _ Unit
 deletePack = phKill -- TODO: clear components (overlapped, dragging, etc.)
@@ -679,9 +725,12 @@ packToHand pid p =  do
 dropAt :: { x :: Int, y :: Int } -> ClPack -> Eff _ Unit
 dropAt xy p = do
   p # phSetVisible
-  p # phSetPos xy
+--  p # phSetPos xy
   p # dropCard
   p # setInField
+  props <- p # getProps
+  modifyEntityEff (entityStatic xy) props.gid
+  modifyEntityEff (entityLock NoLock) props.gid
 
 data LockedStatus
   = LockSelf
@@ -734,6 +783,16 @@ foreign import setEntities :: forall e. Entities (Eff (ph :: PHASER | e)) -> Eff
 foreign import updateDragged :: forall e. ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import getXY :: forall e. ClPack -> Eff (ph :: PHASER | e) { x :: Int, y :: Int }
 foreign import setPackXY :: forall e. { x :: Int, y :: Int } -> ClPack -> Eff (ph :: PHASER | e) Unit
+
+foreign import data ClZone :: Type
+
+foreign import playerHandZone :: forall e. Eff (ph :: PHASER | e) ClZone
+
+addEntityEff :: forall e. Int -> Entity (Eff (ph :: PHASER | e)) -> Eff (ph :: PHASER | e) Unit
+addEntityEff i e = do
+  es <- getEntities
+  let es' = es # M.insert i e
+  setEntities es'
 
 modifyEntitiesEff :: forall e. (Entities (Eff (ph :: PHASER | e)) -> Entities (Eff (ph :: PHASER | e))) -> Eff (ph :: PHASER | e) Unit
 modifyEntitiesEff f = do
@@ -789,7 +848,7 @@ updateEntities k = do
         Tuple (Just Dragged) { updateDragged: updateDragged } -> do
           e.rep # updateDragged
           case firstOverlappingEntity (EntityA e) es of
-            Just overlap -> k.modifyEntity (setOverlapped true) e.id
+            Just overlap -> k.modifyEntity (setOverlapped true) (overlap # entityId)
             Nothing -> pure unit
         Tuple Nothing _ -> pure unit
     updateColor k e = e # runExists (updateColor' k)
@@ -838,6 +897,11 @@ firstOverlappingEntity (EntityA e1) es = es # find overlapping
                  then true
                  else false
 
+entityId :: forall f. Entity f -> Int
+entityId = runExists f
+  where
+    f :: forall f a. EntityA f a -> Int
+    f (EntityA e) = e.id
 
 packColor :: forall a f. Components a f -> Int
 packColor (Components cs) = case ({ a: cs.position, b: cs.overlappable, c: cs.lockable}) of
@@ -852,3 +916,7 @@ zoneColor :: forall a f. Components a f -> Int
 zoneColor (Components cs) = case cs.overlappable of
   Just { overlapped: true } -> 0xd366ce
   _ -> 0xd3ffce
+
+
+-- TODO: add shared component to share position of dragged cards
+-- TODO: trigger onOverlapDrop function in dropAt function
