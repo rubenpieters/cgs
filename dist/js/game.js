@@ -313,13 +313,13 @@ function cardInputUp(sprite, pointer) {
     if (Math.abs(dragTrigger.x - game.input.x) > 2 || Math.abs(dragTrigger.y - game.input.y) > 2) {
       const wasInHand = draggedCard.props.inhand;
       const droppedInHand = PS.ClientMain.checkOverlap(draggedCard)(playerHandZone);
-      if (wasInHand && droppedInHand) {
+//      if (wasInHand && droppedInHand) {
         // client movement only
-        PS.ClientMain.dropCard(draggedCard)();
-      } else if (!wasInHand && droppedInHand) {
+//        PS.ClientMain.dropCard(draggedCard)();
+//      } else if (!wasInHand && droppedInHand) {
         // send server dropInHand
-        eventBuffer.push(new PS.SharedData.ClToHand(draggedCard.props.gid));
-      } else if (!droppedInHand) {
+//        eventBuffer.push(new PS.SharedData.ClToHand(draggedCard.props.gid));
+//      } else if (!droppedInHand) {
         // inform server drop
         //const draggingDrawnCard = dragTrigger.c.props.gid !== sprite.props.gid;
         if (dragTrigger.left || dragTrigger.right) {
@@ -327,7 +327,7 @@ function cardInputUp(sprite, pointer) {
         } else if (dragTrigger.middle) {
           eventBuffer.push(new PS.SharedData.ClFlip(sprite.props.gid));
         }
-      }
+//      }
     // card was selected
     } else {
       console.log("select: " + draggedCard.props.gid);
@@ -344,10 +344,11 @@ function cardInputUp(sprite, pointer) {
 }
 
 function dropCard(c) {
-  PS.ClientMain.foldOverlapCard(function(overlap) {
+/*  PS.ClientMain.foldOverlapCard(function(overlap) {
     return function () {
       eventBuffer.push(new PS.SharedData.ClDropIn(c.props.gid, { tgt: overlap.props.gid }));
     };})(function() {
       eventBuffer.push(new PS.SharedData.ClDrop(c.props.gid, { x: c.x, y: c.y }));
-    })();
+ })();*/
+  PS.ClientMain.checkDrop(c)();
 };

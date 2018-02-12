@@ -652,6 +652,7 @@ mkCardEntity gid p = mkExists (EntityA
     , lockable: Just NoLock
     , position: Tuple (Just (Static { x:0, y:0 })) posFields
     , color: Tuple (Just PackColor) { setColor: setTint }
+    , overlapDrop: Just { onOverlapDrop: inPackDrop }
     }
   , rep: p
   })
@@ -671,6 +672,7 @@ mkZoneEntity i z = mkExists (EntityA
     , lockable: Nothing
     , position: Tuple Nothing posFields
     , color: Tuple (Just ZoneColor) { setColor: setZoneTint }
+    , overlapDrop: Just { onOverlapDrop: inZoneDrop }
     }
   , rep: z
   })
@@ -707,6 +709,14 @@ entityLock lk = runExists f
       let (Components cs) = e.components
       in mkExists $ EntityA (e { components= Components (cs { lockable= Just lk }) })
 
+entityOverlap :: forall f. Boolean -> Entity f -> Entity f
+entityOverlap b = runExists f
+  where
+    f :: forall f a. EntityA f a -> Entity f
+    f (EntityA e) =
+      let (Components cs) = e.components
+      in mkExists $ EntityA (e { components= Components (cs { overlappable= Just { overlapped: b } }) })
+
 deletePack :: ClPack -> Eff _ Unit
 deletePack = phKill -- TODO: clear components (overlapped, dragging, etc.)
 
@@ -716,9 +726,13 @@ packToHand pid p =  do
   props <- p # getProps
   if (ownPid == pid)
      then do
-       onCard props.gid dropCard
-       onCard props.gid setInHand
-       handZoneNoHighlight
+       props <- p # getProps
+       -- TODO: correct positions in zone, split packs
+       modifyEntityEff (entityStatic { x: 10, y: 440 }) props.gid
+       modifyEntityEff (entityLock NoLock) props.gid
+--       onCard props.gid dropCard
+--       onCard props.gid setInHand
+--       handZoneNoHighlight
      else do
        onCard props.gid phSetInvisible
 
@@ -731,6 +745,38 @@ dropAt xy p = do
   props <- p # getProps
   modifyEntityEff (entityStatic xy) props.gid
   modifyEntityEff (entityLock NoLock) props.gid
+
+checkDrop :: forall e. ClPack -> Eff (ph :: PHASER | e) Unit
+checkDrop p = do
+  es <- getEntities
+  case es # getOverlappedEntity of
+    -- trigger onoverlapdrop
+    Just overlapped -> f overlapped
+    -- if no overlapped entity -> normal drop
+    Nothing -> noOverlapDrop
+  where
+    noOverlapDrop :: Eff (ph :: PHASER | e) Unit
+    noOverlapDrop = fieldDrop p
+    f :: Entity (Eff (ph :: PHASER | e)) -> Eff (ph :: PHASER | e) Unit
+    f = runExists f'
+    f' :: forall a. EntityA (Eff (ph :: PHASER | e)) a -> Eff (ph :: PHASER | e) Unit
+    f' (EntityA e) = let (Components cs) = e.components
+      in case cs.overlapDrop of
+        Just { onOverlapDrop: onOverlapDrop } -> do
+          e.rep # onOverlapDrop p
+          modifyEntityEff (entityOverlap false) e.id
+        Nothing -> noOverlapDrop
+
+getOverlappedEntity :: forall f. Entities f -> Maybe (Entity f)
+getOverlappedEntity es = es # find f
+  where
+    f :: Entity f -> Boolean
+    f e = e # runExists f'
+    f' :: forall a. EntityA f a -> Boolean
+    f' (EntityA e) = let (Components cs) = e.components
+      in case cs.overlappable of
+        Just { overlapped: true } -> true
+        _ -> false
 
 data LockedStatus
   = LockSelf
@@ -756,11 +802,16 @@ type ColorFields a f =
   { setColor :: Int -> a -> f Unit
   }
 
+type DropFields a f =
+  { onOverlapDrop :: ClPack -> a -> f Unit
+  }
+
 newtype Components a f = Components
   { overlappable :: Maybe { overlapped :: Boolean }
   , lockable :: Maybe LockedStatus
   , position :: Tuple (Maybe PositionStatus) (PositionFields a f)
   , color :: Tuple (Maybe ColorType) (ColorFields a f)
+  , overlapDrop :: Maybe (DropFields a f)
   }
 
 --derive instance newtypeComponents :: Newtype (Components a f) _
@@ -783,6 +834,9 @@ foreign import setEntities :: forall e. Entities (Eff (ph :: PHASER | e)) -> Eff
 foreign import updateDragged :: forall e. ClPack -> Eff (ph :: PHASER | e) Unit
 foreign import getXY :: forall e. ClPack -> Eff (ph :: PHASER | e) { x :: Int, y :: Int }
 foreign import setPackXY :: forall e. { x :: Int, y :: Int } -> ClPack -> Eff (ph :: PHASER | e) Unit
+foreign import fieldDrop :: forall e. ClPack -> Eff (ph :: PHASER | e ) Unit
+foreign import inPackDrop :: forall e. ClPack -> ClPack -> Eff (ph :: PHASER | e) Unit
+foreign import inZoneDrop :: forall e. ClPack -> ClZone -> Eff (ph :: PHASER | e) Unit
 
 foreign import data ClZone :: Type
 

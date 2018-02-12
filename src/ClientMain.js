@@ -402,6 +402,31 @@ exports.setPackXY=function(xy) {
   };
 };
 
+exports.fieldDrop=function(c) {
+  return function() {
+    console.log("dropping " + c.props.gid + " in field");
+    eventBuffer.push(new PS.SharedData.ClDrop(c.props.gid, { x: c.x, y: c.y }));
+  };
+};
+
+exports.inPackDrop=function(c) {
+  return function(tgt) {
+    return function() {
+      console.log("dropping " + c.props.gid + " into " + tgt.props.gid);
+      eventBuffer.push(new PS.SharedData.ClDropIn(c.props.gid, { tgt: tgt.props.gid }));
+    };
+  };
+};
+
+exports.inZoneDrop=function(c) {
+  return function(zone) {
+    return function() {
+      console.log("dropping " + c.props.gid + " into " + "zone");
+      eventBuffer.push(new PS.SharedData.ClToHand(c.props.gid));
+    };
+  };
+};
+
 exports.playerHandZone=function() {
   return playerHandZone;
 };
