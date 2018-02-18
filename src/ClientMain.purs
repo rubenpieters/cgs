@@ -653,6 +653,7 @@ mkCardEntity gid p = mkExists (EntityA
     , position: Tuple (Just (Static { x:0, y:0 })) posFields
     , color: Tuple (Just PackColor) { setColor: setTint }
     , overlapDrop: Just { onOverlapDrop: inPackDrop }
+    , networked: Just { connected: true }
     }
   , rep: p
   })
@@ -662,7 +663,15 @@ mkCardEntity gid p = mkExists (EntityA
       { get: getXY
       , set: setPackXY
       , updateDragged: updateDragged
+      , updateDraggedSend: updateDraggedSendEff
       }
+
+updateDraggedSendEff p = do
+  socket <- getSocket
+  props <- p # getProps
+  phProps <- p # phaserProps
+  socket `emit` (ClMoveGid {id: props.gid, x: phProps.x, y: phProps.y})
+
 
 mkZoneEntity :: forall e. Int -> ClZone -> Entity (Eff (ph :: PHASER | e))
 mkZoneEntity i z = mkExists (EntityA
@@ -673,6 +682,7 @@ mkZoneEntity i z = mkExists (EntityA
     , position: Tuple Nothing posFields
     , color: Tuple (Just ZoneColor) { setColor: setZoneTint }
     , overlapDrop: Just { onOverlapDrop: inZoneDrop }
+    , networked: Just { connected: false }
     }
   , rep: z
   })
@@ -682,6 +692,7 @@ mkZoneEntity i z = mkExists (EntityA
       { get: unsafeCoerce "noImpl"
       , set: unsafeCoerce "noImpl"
       , updateDragged: unsafeCoerce "noImpl"
+      , updateDraggedSend: unsafeCoerce "noImpl"
       }
 
 
@@ -794,6 +805,7 @@ type PositionFields a f =
   { get :: a -> f { x :: Int, y :: Int }
   , set :: { x :: Int, y :: Int } -> a -> f Unit
   , updateDragged :: a -> f Unit
+  , updateDraggedSend :: a -> f Unit
   }
 
 data ColorType
@@ -815,6 +827,7 @@ newtype Components a f = Components
   , position :: Tuple (Maybe PositionStatus) (PositionFields a f)
   , color :: Tuple (Maybe ColorType) (ColorFields a f)
   , overlapDrop :: Maybe (DropFields a f)
+  , networked :: Maybe { connected :: Boolean }
   }
 
 --derive instance newtypeComponents :: Newtype (Components a f) _
@@ -893,6 +906,8 @@ updateEntities k = do
   for_ es1 (updatePosition k)
   es2 <- k.get
   for_ es2 (updateColor k)
+  es3 <- k.get
+  for_ es3 (updateNetwork k)
   where
     updatePosition k e = e # runExists (updatePosition' k)
     updatePosition' :: forall a r.
@@ -916,7 +931,8 @@ updateEntities k = do
         Tuple Nothing _ -> pure unit
     updateColor k e = e # runExists (updateColor' k)
     updateColor' :: forall a r.
-                    { get :: f (Entities f)
+                    { log :: String -> f Unit
+                    , get :: f (Entities f)
                     , modify :: (Entities f -> Entities f) -> f Unit
                     , modifyEntity :: (Entity f -> Entity f) -> Int -> f Unit
                     | r} ->
@@ -932,6 +948,21 @@ updateEntities k = do
           e.rep # setColor (zoneColor csr)
         Tuple Nothing _ -> pure unit
       pure unit
+    updateNetwork k e = e # runExists (updateNetwork' k)
+    updateNetwork' :: forall a r.
+                    { log :: String -> f Unit
+                    , get :: f (Entities f)
+                    , modify :: (Entities f -> Entities f) -> f Unit
+                    , modifyEntity :: (Entity f -> Entity f) -> Int -> f Unit
+                    | r} ->
+                    EntityA f a -> f Unit
+    updateNetwork' k (EntityA e) = do
+      let csr@(Components cs) = e.components
+      case { a: cs.position, b: cs.networked } of
+        { a: Tuple (Just Dragged) { updateDraggedSend: send }, b: Just { connected: true }} -> e.rep # send
+        _ -> pure unit
+      pure unit
+
 
 clearOverlappedStatus :: forall a f. Entities f -> Entities f
 clearOverlappedStatus es = es <#> setOverlapped false
