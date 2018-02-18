@@ -718,7 +718,10 @@ entityOverlap b = runExists f
       in mkExists $ EntityA (e { components= Components (cs { overlappable= Just { overlapped: b } }) })
 
 deletePack :: ClPack -> Eff _ Unit
-deletePack = phKill -- TODO: clear components (overlapped, dragging, etc.)
+deletePack p = do
+  p # phKill
+  props <- p # getProps
+  deleteEntityEff props.gid
 
 packToHand :: PlayerId -> ClPack -> Eff _ Unit
 packToHand pid p =  do
@@ -846,6 +849,12 @@ addEntityEff :: forall e. Int -> Entity (Eff (ph :: PHASER | e)) -> Eff (ph :: P
 addEntityEff i e = do
   es <- getEntities
   let es' = es # M.insert i e
+  setEntities es'
+
+deleteEntityEff :: forall e. Int -> Eff (ph :: PHASER | e) Unit
+deleteEntityEff i = do
+  es <- getEntities
+  let es' = es # M.delete i
   setEntities es'
 
 modifyEntitiesEff :: forall e. (Entities (Eff (ph :: PHASER | e)) -> Entities (Eff (ph :: PHASER | e))) -> Eff (ph :: PHASER | e) Unit
